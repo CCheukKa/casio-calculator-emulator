@@ -10,6 +10,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@types/decimal.js": "^7.4.3",
     "decimal.js": "^10.6.0"
   }
 }

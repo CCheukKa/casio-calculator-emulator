@@ -218,7 +218,6 @@ describe("VM parsing and execution edge cases", () => {
                 Token.NUMBER_2,
                 Token.POWER,
                 Token.NUMBER_3,
-                Token.DISPLAY,
             ]),
             Error.SYNTAX_ERROR,
         );
@@ -235,6 +234,15 @@ describe("VM parsing and execution edge cases", () => {
         expect(vm.state.answer).toBe(1.25);
     });
 
+    test("decimal point without following number is allowed", () => {
+        const vm = runProgram([
+            Token.NUMBER_1,
+            Token.DECIMAL_POINT,
+            Token.DISPLAY,
+        ]);
+        expect(vm.state.answer).toBe(1);
+    });
+
     test("scientific notation parsing", () => {
         const vm = runProgram([
             Token.NUMBER_1,
@@ -245,15 +253,121 @@ describe("VM parsing and execution edge cases", () => {
         expect(vm.state.answer).toBe(100);
     });
 
-    test("scientific notation with signed exponent is currently rejected", () => {
+    test("scientific notation with hanging decimal point in base is accepted", () => {
+        const vm = runProgram([
+            Token.NUMBER_1,
+            Token.DECIMAL_POINT,
+            Token.SCIENTIFIC_EXPONENTIATION,
+            Token.NUMBER_2,
+        ]);
+        expect(vm.state.answer).toBe(100);
+    });
+
+    test("scientific notation with signed exponent is accepted", () => {
+        const vmPos = runProgram([
+            Token.MINUS,
+            Token.NUMBER_1,
+            Token.SCIENTIFIC_EXPONENTIATION,
+            Token.PLUS,
+            Token.NUMBER_2,
+            Token.DISPLAY,
+        ]);
+        expect(vmPos.state.answer).toBe(-100);
+
+        const vmNeg = runProgram([
+            Token.MINUS,
+            Token.NUMBER_1,
+            Token.SCIENTIFIC_EXPONENTIATION,
+            Token.MINUS,
+            Token.NUMBER_2,
+            Token.DISPLAY,
+        ]);
+        expect(vmNeg.state.answer).toBe(-0.01);
+    });
+
+    test("scientific notation without base number is accepted and treated as 1", () => {
+        const vm = runProgram([
+            Token.SCIENTIFIC_EXPONENTIATION,
+            Token.NUMBER_2,
+            Token.DISPLAY,
+        ]);
+        expect(vm.state.answer).toBe(100);
+    });
+
+    test("scientific notation does not allow decimal point in exponent", () => {
         expectThrowsValue(
             () => runProgram([
-                Token.MINUS,
                 Token.NUMBER_1,
                 Token.SCIENTIFIC_EXPONENTIATION,
-                Token.MINUS,
                 Token.NUMBER_2,
-                Token.DISPLAY,
+                Token.DECIMAL_POINT,
+                Token.NUMBER_5,
+            ]),
+            Error.SYNTAX_ERROR,
+        );
+    });
+
+    test("scientific notation does not allow non-numeric tokens in base", () => {
+        expectThrowsValue(
+            () => runProgram([
+                Token.LEFT_PARENTHESIS,
+                Token.NUMBER_1,
+                Token.RIGHT_PARENTHESIS,
+                Token.SCIENTIFIC_EXPONENTIATION,
+                Token.NUMBER_2,
+            ]),
+            Error.SYNTAX_ERROR,
+        );
+        expectThrowsValue(
+            () => runProgram([
+                Token.VARIABLE_A,
+                Token.SCIENTIFIC_EXPONENTIATION,
+                Token.NUMBER_2,
+            ]),
+            Error.SYNTAX_ERROR,
+        );
+        expectThrowsValue(
+            () => runProgram([
+                Token.PI,
+                Token.SCIENTIFIC_EXPONENTIATION,
+                Token.NUMBER_2,
+            ]),
+            Error.SYNTAX_ERROR,
+        );
+        expectThrowsValue(
+            () => runProgram([
+                Token.IMAGINARY_UNIT,
+                Token.SCIENTIFIC_EXPONENTIATION,
+                Token.NUMBER_2,
+            ]),
+            Error.SYNTAX_ERROR,
+        );
+    });
+
+    test("scientific notation does not allow non-numeric tokens in exponent", () => {
+        expectThrowsValue(
+            () => runProgram([
+                Token.NUMBER_1,
+                Token.SCIENTIFIC_EXPONENTIATION,
+                Token.LEFT_PARENTHESIS,
+                Token.NUMBER_2,
+                Token.RIGHT_PARENTHESIS,
+            ]),
+            Error.SYNTAX_ERROR,
+        );
+        expectThrowsValue(
+            () => runProgram([
+                Token.NUMBER_1,
+                Token.SCIENTIFIC_EXPONENTIATION,
+                Token.VARIABLE_A,
+            ]),
+            Error.SYNTAX_ERROR,
+        );
+        expectThrowsValue(
+            () => runProgram([
+                Token.NUMBER_2,
+                Token.SCIENTIFIC_EXPONENTIATION,
+                Token.IMAGINARY_UNIT,
             ]),
             Error.SYNTAX_ERROR,
         );
@@ -266,7 +380,6 @@ describe("VM parsing and execution edge cases", () => {
                 Token.DECIMAL_POINT,
                 Token.DECIMAL_POINT,
                 Token.NUMBER_2,
-                Token.DISPLAY,
             ]),
             Error.SYNTAX_ERROR,
         );
@@ -326,7 +439,6 @@ describe("VM parsing and execution edge cases", () => {
             () => runProgram([
                 Token.VARIABLE_A,
                 Token.NUMBER_2,
-                Token.DISPLAY,
             ]),
             Error.SYNTAX_ERROR,
         );
@@ -337,7 +449,6 @@ describe("VM parsing and execution edge cases", () => {
             () => runProgram([
                 Token.ANSWER,
                 Token.NUMBER_2,
-                Token.DISPLAY,
             ]),
             Error.SYNTAX_ERROR,
         );
@@ -348,7 +459,6 @@ describe("VM parsing and execution edge cases", () => {
             () => runProgram([
                 Token.PI,
                 Token.NUMBER_2,
-                Token.DISPLAY,
             ]),
             Error.SYNTAX_ERROR,
         );
@@ -362,7 +472,6 @@ describe("VM parsing and execution edge cases", () => {
                 Token.NUMBER_0,
                 Token.RIGHT_PARENTHESIS,
                 Token.NUMBER_2,
-                Token.DISPLAY,
             ]),
             Error.SYNTAX_ERROR,
         );
@@ -429,7 +538,6 @@ describe("VM parsing and execution edge cases", () => {
                 Token.NUMBER_1,
                 Token.COMMA,
                 Token.NUMBER_2,
-                Token.DISPLAY,
             ]),
             Error.SYNTAX_ERROR,
         );
@@ -458,7 +566,6 @@ describe("VM parsing and execution edge cases", () => {
             () => runProgram([
                 Token.NUMBER_0,
                 Token.INVERSE,
-                Token.DISPLAY,
             ]),
             Error.MATH_ERROR,
         );
@@ -520,7 +627,6 @@ describe("VM positive/negative error generation", () => {
                 Token.NEGATIVE,
                 Token.NUMBER_1,
                 Token.RIGHT_PARENTHESIS,
-                Token.DISPLAY,
             ]),
             Error.MATH_ERROR,
         );
@@ -548,7 +654,6 @@ describe("VM positive/negative error generation", () => {
                 Token.COMMA,
                 Token.NUMBER_1,
                 Token.RIGHT_PARENTHESIS,
-                Token.DISPLAY,
             ]),
             Error.EMULATOR_ERROR,
         );
@@ -570,7 +675,6 @@ describe("VM positive/negative error generation", () => {
                 Token.DECIMAL_POINT,
                 Token.NUMBER_5,
                 Token.FACTORIAL,
-                Token.DISPLAY,
             ]),
             Error.MATH_ERROR,
         );
@@ -595,7 +699,6 @@ describe("VM positive/negative error generation", () => {
             () => runProgram([
                 Token.PLUS,
                 Token.MULTIPLY,
-                Token.DISPLAY,
             ]),
             Error.SYNTAX_ERROR,
         );

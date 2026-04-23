@@ -7,7 +7,8 @@ Decimal.set({
     rounding: Decimal.ROUND_HALF_UP,
 });
 
-const PI = Decimal.acos(-1);
+export const PI = Decimal.acos(-1);
+export const E = Decimal.exp(1);
 
 const D = (value: Decimal.Value) => new Decimal(value);
 
@@ -40,6 +41,7 @@ export const _toGradians = (a: Decimal, angleMode: AngleMode) => {
     }
 }
 export const _multiplyFromTo = (a: Decimal, b: Decimal) => {
+    if (!a.isInteger() || !b.isInteger()) { throw Error.EMULATOR_ERROR; }
     if (a.gt(b) && !(a.isNegative() && b.isNegative())) { return D(1); }
     let result = D(1);
     const step = a.lte(b) ? D(1) : D(-1);
@@ -55,6 +57,7 @@ export const _mathErrorGuard = (a: Decimal) => {
 
 // simple operators
 export class CommonOperators {
+    // basic arithmetic
     public static add = (a: Decimal, b: Decimal) => a.plus(b);
     public static subtract = (a: Decimal, b: Decimal) => a.minus(b);
     public static multiply = (a: Decimal, b: Decimal) => a.times(b);
@@ -64,11 +67,10 @@ export class CommonOperators {
     };
     public static sciExp = (a: Decimal, b: Decimal) => a.times(D(10).pow(b));
     public static negative = (a: Decimal) => a.negated();
-    public static factorial = (a: Decimal): Decimal => {
-        if (a.lt(0)) { throw Error.MATH_ERROR; }
-        if (!a.isInteger()) { throw Error.MATH_ERROR; }
-        return _multiplyFromTo(D(1), a);
-    }
+    public static percent = (a: Decimal) => a.div(100);
+    public static abs = (a: Decimal) => a.abs();
+
+    // trigonometric functions
     public static sin = (a: Decimal, angleMode: AngleMode) => _toRadians(a, angleMode).sin();
     public static cos = (a: Decimal, angleMode: AngleMode) => _toRadians(a, angleMode).cos();
     public static tan = (a: Decimal, angleMode: AngleMode) => {
@@ -76,24 +78,33 @@ export class CommonOperators {
         if (radians.cos().abs().lte(D("1e-18"))) { throw Error.MATH_ERROR; }
         return radians.tan();
     };
-    public static sinh = (a: Decimal) => a.sinh();
-    public static cosh = (a: Decimal) => a.cosh();
-    public static tanh = (a: Decimal) => a.tanh();
     public static asin = (a: Decimal, angleMode: AngleMode) => _mathErrorGuard(this.fromRadian(a.asin(), angleMode));
     public static acos = (a: Decimal, angleMode: AngleMode) => _mathErrorGuard(this.fromRadian(a.acos(), angleMode));
     public static atan = (a: Decimal, angleMode: AngleMode) => this.fromRadian(a.atan(), angleMode);
+    public static sinh = (a: Decimal) => a.sinh();
+    public static cosh = (a: Decimal) => a.cosh();
+    public static tanh = (a: Decimal) => a.tanh();
     public static asinh = (a: Decimal) => a.asinh();
     public static acosh = (a: Decimal) => _mathErrorGuard(a.acosh());
     public static atanh = (a: Decimal) => _mathErrorGuard(a.atanh());
+
+    // power and logarithm
     public static square = (a: Decimal) => a.times(a);
     public static sqrt = (a: Decimal) => {
         if (a.lt(0)) { throw Error.MATH_ERROR; }
         return a.sqrt();
     }
+    public static cube = (a: Decimal) => a.pow(3);
+    public static cubeRoot = (a: Decimal) => a.pow(D(1).div(3));
     public static power = (a: Decimal, b: Decimal) => {
         if (a.isZero() && b.lte(0)) { throw Error.MATH_ERROR; }
         if (a.isNegative() && !b.isInteger()) { throw Error.MATH_ERROR; }
         return a.pow(b);
+    }
+    public static xRoot = (a: Decimal, b: Decimal) => {
+        if (a.isZero()) { throw Error.MATH_ERROR; }
+        if (b.lt(0) && a.mod(2).isZero()) { throw Error.MATH_ERROR; }
+        return b.pow(D(1).div(a));
     }
     public static log = (a: Decimal, b?: Decimal) => {
         if (b === undefined) {
@@ -113,13 +124,45 @@ export class CommonOperators {
         if (a.isZero()) { throw Error.MATH_ERROR; }
         return D(1).div(a);
     }
-    public static cube = (a: Decimal) => a.pow(3);
-    public static cubeRoot = (a: Decimal) => a.pow(D(1).div(3));
-    public static xRoot = (a: Decimal, b: Decimal) => {
-        if (a.isZero()) { throw Error.MATH_ERROR; }
-        if (b.lt(0) && a.mod(2).isZero()) { throw Error.MATH_ERROR; }
-        return b.pow(D(1).div(a));
+
+    // combinatorics
+    public static factorial = (a: Decimal): Decimal => {
+        if (a.lt(0)) { throw Error.MATH_ERROR; }
+        if (!a.isInteger()) { throw Error.MATH_ERROR; }
+        return _multiplyFromTo(D(1), a);
     }
+    public static permutation = (n: Decimal, r: Decimal) => {
+        if (n.lt(0) || r.lt(0) || n.lt(r)) { throw Error.MATH_ERROR; }
+        if (!n.isInteger() || !r.isInteger()) { throw Error.MATH_ERROR; }
+        if (r.isZero()) { return D(1); }
+        const tfac = _multiplyFromTo(D(1), n.minus(r));
+        const nfac = tfac.times(_multiplyFromTo(n.minus(r).plus(1), n));
+        return nfac.div(tfac);
+    }
+    public static combination = (n: Decimal, r: Decimal) => {
+        if (n.lt(0) || r.lt(0) || n.lt(r)) { throw Error.MATH_ERROR; }
+        if (!n.isInteger() || !r.isInteger()) { throw Error.MATH_ERROR; }
+        if (r.isZero()) { return D(1); }
+        let t1 = r;
+        let t2 = n.minus(r);
+        if (t1.gt(t2)) { [t1, t2] = [t2, t1]; }
+        const t1fac = _multiplyFromTo(D(1), t1);
+        const t2fac = t1fac.times(_multiplyFromTo(t1.plus(1), t2));
+        const nfac = t2fac.times(_multiplyFromTo(t2.plus(1), n));
+        return nfac.div(t2fac).div(t1fac);
+    }
+
+    // polar and rectangular coordinates
+    public static polar = (a: Decimal, b: Decimal, angleMode: AngleMode) => ({
+        x: a.pow(2).plus(b.pow(2)).sqrt(),
+        y: this.fromRadian(D(Math.atan2(b.toNumber(), a.toNumber())), angleMode)
+    });
+    public static rectangular = (a: Decimal, b: Decimal, angleMode: AngleMode) => ({
+        x: a.times(_toRadians(b, angleMode).cos()),
+        y: a.times(_toRadians(b, angleMode).sin())
+    });
+
+    // other functions
     public static round = (a: Decimal, numberDisplayMode: NumberDisplayMode) => {
         switch (numberDisplayMode) {
             case NumberDisplayMode.FIXED_POINT_0: return a.toDecimalPlaces(0);
@@ -136,7 +179,7 @@ export class CommonOperators {
                 return a;
         }
     }
-    public static random = () => D(Math.random());
+    public static random = () => Decimal.random();
     public static fromDegree = (a: Decimal, angleMode: AngleMode) => {
         switch (angleMode) {
             case AngleMode.DEGREE: return a;
@@ -164,44 +207,19 @@ export class CommonOperators {
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static polar = (a: Decimal, b: Decimal, angleMode: AngleMode) => ({
-        x: a.pow(2).plus(b.pow(2)).sqrt(),
-        y: this.fromRadian(D(Math.atan2(b.toNumber(), a.toNumber())), angleMode)
-    });
-    public static rectangular = (a: Decimal, b: Decimal, angleMode: AngleMode) => ({
-        x: a.times(_toRadians(b, angleMode).cos()),
-        y: a.times(_toRadians(b, angleMode).sin())
-    });
-    public static permutation = (n: Decimal, r: Decimal) => {
-        if (n.lt(0) || r.lt(0) || n.lt(r)) { throw Error.MATH_ERROR; }
-        if (!n.isInteger() || !r.isInteger()) { throw Error.MATH_ERROR; }
-        if (r.isZero()) { return D(1); }
-        const tfac = _multiplyFromTo(D(1), n.minus(r));
-        const nfac = tfac.times(_multiplyFromTo(n.minus(r).plus(1), n));
-        return nfac.div(tfac);
-    }
-    public static combination = (n: Decimal, r: Decimal) => {
-        if (n.lt(0) || r.lt(0) || n.lt(r)) { throw Error.MATH_ERROR; }
-        if (!n.isInteger() || !r.isInteger()) { throw Error.MATH_ERROR; }
-        if (r.isZero()) { return D(1); }
-        let t1 = r;
-        let t2 = n.minus(r);
-        if (t1.gt(t2)) { [t1, t2] = [t2, t1]; }
-        const t1fac = _multiplyFromTo(D(1), t1);
-        const t2fac = t1fac.times(_multiplyFromTo(t1.plus(1), t2));
-        const nfac = t2fac.times(_multiplyFromTo(t2.plus(1), n));
-        return nfac.div(t2fac).div(t1fac);
-    }
-    public static percent = (a: Decimal) => a.div(100);
-    public static abs = (a: Decimal) => a.abs();
 }
 // complex-compatible operators
 type complex = { re: Decimal, im: Decimal }
 export class ComplexOperators {
     private static toComplex = (a: Decimal): complex => ({ re: a, im: D(0) });
     private static equal = (a: complex, b: complex) => a.re.eq(b.re) && a.im.eq(b.im);
+    private static assertReal = (a: complex, error = Error.MATH_ERROR) => {
+        if (!a.im.isZero()) { throw error; }
+    };
 
     public static conjugate = (a: complex): complex => ({ re: a.re, im: a.im.negated() });
+
+    // basic arithmetic
     public static add = (a: complex, b: complex): complex => ({
         re: a.re.plus(b.re),
         im: a.im.plus(b.im)
@@ -224,63 +242,78 @@ export class ComplexOperators {
             im: nominator.im.div(denominator)
         }
     }
+    public static sciExp = (a: complex, b: complex): complex => {
+        this.assertReal(a, Error.EMULATOR_ERROR);
+        this.assertReal(b, Error.EMULATOR_ERROR);
+        return this.multiply(a, this.toComplex(D(10).pow(b.re)));
+    }
     public static negative = (a: complex): complex => ({ re: a.re.negated(), im: a.im.negated() });
+    public static abs = (a: complex): complex => ({ re: a.re.pow(2).plus(a.im.pow(2)).sqrt(), im: D(0) });
+
+    // trigonometric functions
     public static sin = (a: complex, angleMode: AngleMode): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        this.assertReal(a);
         return this.toComplex(CommonOperators.sin(a.re, angleMode));
     }
     public static cos = (a: complex, angleMode: AngleMode): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        this.assertReal(a);
         return this.toComplex(CommonOperators.cos(a.re, angleMode));
     }
     public static tan = (a: complex, angleMode: AngleMode): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        this.assertReal(a);
         return this.toComplex(CommonOperators.tan(a.re, angleMode));
     }
-    public static sinh = (a: complex): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.sinh(a.re));
-    }
-    public static cosh = (a: complex): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.cosh(a.re));
-    }
-    public static tanh = (a: complex): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.tanh(a.re));
-    }
     public static asin = (a: complex, angleMode: AngleMode): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        this.assertReal(a);
         return this.toComplex(CommonOperators.asin(a.re, angleMode));
     }
     public static acos = (a: complex, angleMode: AngleMode): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        this.assertReal(a);
         return this.toComplex(CommonOperators.acos(a.re, angleMode));
     }
     public static atan = (a: complex, angleMode: AngleMode): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        this.assertReal(a);
         return this.toComplex(CommonOperators.atan(a.re, angleMode));
     }
+    public static sinh = (a: complex): complex => {
+        this.assertReal(a);
+        return this.toComplex(CommonOperators.sinh(a.re));
+    }
+    public static cosh = (a: complex): complex => {
+        this.assertReal(a);
+        return this.toComplex(CommonOperators.cosh(a.re));
+    }
+    public static tanh = (a: complex): complex => {
+        this.assertReal(a);
+        return this.toComplex(CommonOperators.tanh(a.re));
+    }
     public static asinh = (a: complex): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        this.assertReal(a);
         return this.toComplex(CommonOperators.asinh(a.re));
     }
     public static acosh = (a: complex): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        this.assertReal(a);
         return this.toComplex(CommonOperators.acosh(a.re));
     }
     public static atanh = (a: complex): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        this.assertReal(a);
         return this.toComplex(CommonOperators.atanh(a.re));
     }
+
+    // power and logarithm
     public static square = (a: complex): complex => this.multiply(a, a);
     public static sqrt = (a: complex): complex => {
-        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        this.assertReal(a);
         if (a.re.gte(0)) {
             return this.toComplex(a.re.sqrt());
         } else {
             return { re: D(0), im: a.re.negated().sqrt() };
         }
+    }
+    public static cube = (a: complex): complex => this.multiply(this.multiply(a, a), a);
+    public static cubeRoot = (a: complex): complex => {
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        return this.toComplex(CommonOperators.cubeRoot(a.re));
     }
     public static power = (a: complex, b: complex): complex => {
         if (!b.im.isZero()) { throw Error.MATH_ERROR; }
@@ -298,6 +331,11 @@ export class ComplexOperators {
         }
         return result;
     }
+    public static xRoot = (a: complex, b: complex): complex => {
+        if (this.equal(a, this.toComplex(D(0)))) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero() || !b.im.isZero()) { throw Error.MATH_ERROR; }
+        return this.toComplex(CommonOperators.xRoot(a.re, b.re));
+    }
     public static log = (a: complex): complex => {
         if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.log(a.re));
@@ -306,21 +344,49 @@ export class ComplexOperators {
         if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.ln(a.re));
     }
-    public static exp = (a: complex): complex => this.power(this.toComplex(D(Math.E)), a);
+    public static exp = (a: complex): complex => this.power(this.toComplex(E), a);
     public static inverse = (a: complex): complex => {
         if (this.equal(a, this.toComplex(D(0)))) { throw Error.MATH_ERROR; }
         return this.divide(this.toComplex(D(1)), a);
     }
-    public static cube = (a: complex): complex => this.multiply(this.multiply(a, a), a);
-    public static cubeRoot = (a: complex): complex => {
+
+    // combinatorics
+    public static factorial = (a: complex): complex => {
         if (!a.im.isZero()) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.cubeRoot(a.re));
+        return this.toComplex(CommonOperators.factorial(a.re));
     }
-    public static xRoot = (a: complex, b: complex): complex => {
-        if (this.equal(a, this.toComplex(D(0)))) { throw Error.MATH_ERROR; }
-        if (!a.im.isZero() || !b.im.isZero()) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.xRoot(a.re, b.re));
+    public static permutation = (n: complex, r: complex): complex => {
+        if (!n.im.isZero() || !r.im.isZero()) { throw Error.MATH_ERROR; }
+        return this.toComplex(CommonOperators.permutation(n.re, r.re));
     }
+    public static combination = (n: complex, r: complex): complex => {
+        if (!n.im.isZero() || !r.im.isZero()) { throw Error.MATH_ERROR; }
+        return this.toComplex(CommonOperators.combination(n.re, r.re));
+    }
+
+    // polar and rectangular coordinates
+    public static polar = (a: complex): complex => a;
+    public static rectangular = (a: complex): complex => a;
+    public static angle = (r: complex, θ: complex, angleMode: AngleMode): complex => {
+        if (!r.im.isZero() || !θ.im.isZero()) { throw Error.MATH_ERROR; }
+        let radianθ: Decimal;
+        switch (angleMode) {
+            case AngleMode.DEGREE:
+                radianθ = D(_toRadians(θ.re, AngleMode.DEGREE));
+                break;
+            case AngleMode.RADIAN:
+                radianθ = θ.re;
+                break;
+            case AngleMode.GRADIAN:
+                radianθ = D(_toRadians(θ.re, AngleMode.GRADIAN));
+                break;
+            default:
+                throw Error.EMULATOR_ERROR;
+        }
+        return { re: radianθ.cos().times(r.re), im: radianθ.sin().times(r.re) };
+    }
+
+    // other functions
     public static round = (a: complex, numberDisplayMode: NumberDisplayMode): complex => {
         switch (numberDisplayMode) {
             case NumberDisplayMode.FIXED_POINT_0: return { re: a.re.toDecimalPlaces(0), im: a.im.toDecimalPlaces(0) };
@@ -337,7 +403,7 @@ export class ComplexOperators {
                 return a;
         }
     }
-    public static random = (): complex => ({ re: D(Math.random()), im: D(0) });
+    public static random = (): complex => ({ re: Decimal.random(), im: D(0) });
     public static fromDegree = (a: complex, angleMode: AngleMode): complex => {
         if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         switch (angleMode) {
@@ -368,35 +434,6 @@ export class ComplexOperators {
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static polar = (a: complex): complex => a;
-    public static rectangular = (a: complex): complex => a;
-    public static angle = (r: complex, θ: complex, angleMode: AngleMode): complex => {
-        if (!r.im.isZero() || !θ.im.isZero()) { throw Error.MATH_ERROR; }
-        let radianθ: Decimal;
-        switch (angleMode) {
-            case AngleMode.DEGREE:
-                radianθ = D(_toRadians(θ.re, AngleMode.DEGREE));
-                break;
-            case AngleMode.RADIAN:
-                radianθ = θ.re;
-                break;
-            case AngleMode.GRADIAN:
-                radianθ = D(_toRadians(θ.re, AngleMode.GRADIAN));
-                break;
-            default:
-                throw Error.EMULATOR_ERROR;
-        }
-        return { re: radianθ.cos().times(r.re), im: radianθ.sin().times(r.re) };
-    }
-    public static permutation = (n: complex, r: complex): complex => {
-        if (!n.im.isZero() || !r.im.isZero()) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.permutation(n.re, r.re));
-    }
-    public static combination = (n: complex, r: complex): complex => {
-        if (!n.im.isZero() || !r.im.isZero()) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.combination(n.re, r.re));
-    }
-    public static abs = (a: complex): complex => ({ re: a.re.pow(2).plus(a.im.pow(2)).sqrt(), im: D(0) });
 }
 
 // base operators
