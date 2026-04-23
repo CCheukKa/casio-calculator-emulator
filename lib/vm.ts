@@ -1,7 +1,7 @@
 import { Error } from "./errors";
 import { CommonOperators } from "./operations";
 import { AngleMode, CalculatorMode, FrequencyMode, NumberBase, NumberDisplayMode, RegressionMode } from "./modes";
-import { Token } from "./tokens";
+import { Token, TokenSymbol } from "./tokens";
 
 class State {
     public calculatorMode: CalculatorMode;
@@ -123,8 +123,44 @@ export class VM {
                 }
                 continue;
             }
-            this.executeInstruction(instruction, terminator);
+            this.executeInstruction(this.autoCloseParentheses(instruction), terminator);
         }
+    }
+
+    private autoCloseParentheses(instruction: Token[]): Token[] {
+        const balanced = [...instruction];
+        let openCount = 0;
+
+        for (let i = 0; i < balanced.length; i++) {
+            const token = balanced[i]!;
+
+            if (this.isParentheticalFunctionToken(token)) {
+                openCount++;
+                continue;
+            }
+
+            if (token === Token.LEFT_PARENTHESIS) {
+                const previousToken = i > 0 ? balanced[i - 1] : undefined;
+                if (previousToken !== undefined && this.isParentheticalFunctionToken(previousToken)) {
+                    // Parenthetical function symbols like sin( can also be followed by LEFT_PARENTHESIS.
+                    // This still represents one opening level, not two.
+                    continue;
+                }
+                openCount++;
+                continue;
+            }
+
+            if (token === Token.RIGHT_PARENTHESIS && openCount > 0) {
+                openCount--;
+            }
+        }
+
+        while (openCount > 0) {
+            balanced.push(Token.RIGHT_PARENTHESIS);
+            openCount--;
+        }
+
+        return balanced;
     }
 
     private executeInstruction(instruction: Token[], terminator: InstructionTerminator): void {
@@ -211,8 +247,14 @@ export class VM {
 
         if (this.isFunctionToken(token)) {
             this.consumeToken();
-            if (this.peekToken() === Token.LEFT_PARENTHESIS) {
+            const hasExplicitLeftParenthesis = this.peekToken() === Token.LEFT_PARENTHESIS;
+            const expectsParenthesis = hasExplicitLeftParenthesis || this.isParentheticalFunctionToken(token);
+
+            if (hasExplicitLeftParenthesis) {
                 this.consumeToken();
+            }
+
+            if (expectsParenthesis) {
                 const operands: BoundInstruction[] = [];
                 if (this.peekToken() !== Token.RIGHT_PARENTHESIS) {
                     while (true) {
@@ -226,6 +268,7 @@ export class VM {
                     ? { kind: "unary", operation: token, operand: operands[0]! }
                     : { kind: "call", operation: token, operands };
             }
+
             return { kind: "unary", operation: token, operand: this.parseExpression(9) };
         }
 
@@ -446,6 +489,11 @@ export class VM {
         }
     }
 
+    private isParentheticalFunctionToken(token: Token): boolean {
+        const symbol = TokenSymbol[token];
+        return typeof symbol === "string" && symbol.endsWith("(");
+    }
+
     private isPostfixOperator(token: Token | undefined): boolean {
         switch (token) {
             case Token.FACTORIAL:
@@ -568,3 +616,71 @@ export class VM {
         return this.parseState === undefined || this.parseState.index >= this.parseState.tokens.length;
     }
 }
+
+/*
+    The calculator performs calculations you input in accordance with the priority sequence shown below.
+    - Basically, calculations are performed from left to right.
+    - Calculations enclosed in parentheses are given priority.
+    
+    Priority sequence:
+    1.
+        Parenthetical Functions
+            Pol(, Rec(
+            sin(, cos(, tan(, sin¹(, cos1(, tan 1(, sinh(, cosh(,
+            tanh(, sinh ¹(, cosh1(, tanh ¹(
+            log(, In(, e^(, 10^(, √(, 3√(
+            arg(, Abs(, Conjg(
+            Not(, Neg(, Rnd(
+    2.
+        Functions Preceded by Values
+            x², x³, x⁻¹, x!, °’”, °, ʳ, ᵍ
+        Power, Power Root
+            ^(, ˣ√(
+        Percent
+            %
+    3.
+        Fractions
+            aᵇ/꜀
+    4.
+        Prefix Symbols
+            (-) (minus sign)
+            d, h, b, o (number base symbol)
+    5.
+        Statistical Estimated Value Calculations
+        x̂, ŷ, x̂₁, x̂₂
+    6.
+        Permutation, Combination
+            nPr, nCr
+        Complex Number Symbol
+            ∠
+    7.
+        Multiplication, Division
+            ×, ÷
+        Omitted Multiplication Sign
+            Multiplication sign can be omitted immediately
+            before π, e, variables, scientific constants (2π, 5A,
+            πА, 3mₚ, 2i, etc.), and parenthetical functions
+            (2√(3), Asin(30), etc.)
+    8.
+        Addition, Subtraction
+            +,-
+    9.
+        Relational Operators
+            =, ≠, >, <, 2, ≤
+    10.
+        Logical Product
+            and
+    11.
+        Logical Sum, Exclusive Logical Sum, Exclusive Negative Logical Sum
+            or, xor, xnor
+    
+    If a calculation contains a negative value, you may need to enclose the negative value in
+    parentheses. If you want to square the value –2, for example, you need to input: (-2)².This is
+    because x² is a function preceded by a value (Priority 2, above), whose priority is greater than the
+    negative sign, which is a prefix symbol (Priority 4).
+
+    Multiplication and division, and multiplication where the sign is omitted are the same priority
+    (Priority 7), so these operations are performed from left to right when both types are mixed in the
+    same calculation. Enclosing an operation in parentheses causes it to be performed first, so the
+    use of parentheses can result in different calculation results.
+*/

@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Casio Emulator VM UI</title>
+        <style>
+            :root {
+                --bg: #090e19;
+                --bg2: #111827;
+                --panel: #131c2f;
+                --ink: #e5e7eb;
+                --muted: #9ca3af;
+                --accent: #16a34a;
+                --danger: #f87171;
+                --border: #273449;
+                --chip: #1f2a40;
+                --chip-hover: #2a3855;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+                color: var(--ink);
+                background: radial-gradient(
+                    circle at 20% 10%,
+                    #1e293b,
+                    #090e19 45%,
+                    #070b14
+                );
+                min-height: 100vh;
+            }
+
+            .wrap {
+                max-width: 1100px;
+                margin: 24px auto;
+                padding: 0 16px;
+                display: grid;
+                gap: 16px;
+                grid-template-columns: 2fr 1fr;
+            }
+
+            @media (max-width: 900px) {
+                .wrap {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            .card {
+                background: var(--panel);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 14px;
+                box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+            }
+
+            h1 {
+                margin: 0 0 12px;
+                font-size: 24px;
+            }
+
+            h2 {
+                margin: 0 0 10px;
+                font-size: 16px;
+            }
+
+            p {
+                margin: 6px 0;
+                color: var(--muted);
+                font-size: 14px;
+            }
+
+            textarea,
+            input {
+                width: 100%;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 10px;
+                font: 13px/1.4 Consolas, monospace;
+                background: var(--bg2);
+                color: var(--ink);
+            }
+
+            textarea {
+                min-height: 170px;
+                resize: vertical;
+            }
+
+            .display-screen {
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                background: linear-gradient(180deg, #0b1527, #0a1220);
+                padding: 10px 12px;
+                margin: 8px 0 10px;
+                min-height: 72px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                gap: 6px;
+            }
+
+            .display-label {
+                color: var(--muted);
+                font-size: 11px;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+            }
+
+            .display-value {
+                color: #86efac;
+                font: 26px/1.2 Consolas, monospace;
+                word-break: break-all;
+                min-height: 32px;
+            }
+
+            .display-value.dim {
+                color: #64748b;
+            }
+
+            .row {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+                margin-top: 10px;
+            }
+
+            .keypad {
+                margin-top: 12px;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 10px;
+                background: #0d1628;
+            }
+
+            .keypad-grid {
+                display: grid;
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+                gap: 6px;
+            }
+
+            @media (max-width: 720px) {
+                .keypad-grid {
+                    grid-template-columns: repeat(4, minmax(0, 1fr));
+                }
+            }
+
+            .key {
+                border: 1px solid #3b4d6b;
+                border-radius: 8px;
+                background: #1b2740;
+                color: var(--ink);
+                padding: 8px 6px;
+                font: 12px/1.2 Consolas, monospace;
+                cursor: pointer;
+                transition: background 0.15s ease, transform 0.1s ease;
+            }
+
+            .key:hover {
+                background: #2a3a5e;
+                transform: translateY(-1px);
+            }
+
+            .key .key-top {
+                display: block;
+                color: #93c5fd;
+                font-family: "Segoe UI Symbol", "Noto Sans Symbols", sans-serif;
+                font-size: 14px;
+                margin-bottom: 2px;
+            }
+
+            .key .key-bottom {
+                opacity: 0.85;
+                font-size: 10px;
+            }
+
+            .key.accent {
+                background: #0f766e;
+                border-color: #0f766e;
+            }
+
+            .key.warn {
+                background: #374151;
+                border-color: #4b5563;
+            }
+
+            button {
+                border: 0;
+                border-radius: 8px;
+                padding: 9px 12px;
+                font-weight: 600;
+                cursor: pointer;
+                background: var(--accent);
+                color: white;
+            }
+
+            button.secondary {
+                background: #2563eb;
+            }
+            button.ghost {
+                background: #475569;
+            }
+
+            pre {
+                margin: 0;
+                overflow: auto;
+                max-height: 260px;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 10px;
+                background: #0b1220;
+                color: #cbd5e1;
+                font: 12px/1.4 Consolas, monospace;
+            }
+
+            .status {
+                font-size: 13px;
+                margin: 8px 0 0;
+            }
+            .ok {
+                color: #4ade80;
+            }
+            .err {
+                color: var(--danger);
+            }
+
+            .token-list {
+                max-height: 330px;
+                overflow: auto;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 8px;
+                background: var(--bg2);
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+                align-content: flex-start;
+            }
+
+            .token-chip {
+                border: 1px solid #3b4d6b;
+                background: var(--chip);
+                color: var(--ink);
+                border-radius: 999px;
+                padding: 5px 10px;
+                font: 12px/1.2 Consolas, monospace;
+                cursor: pointer;
+                transition: background 0.15s ease, transform 0.1s ease;
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+            }
+
+            .token-chip .symbol {
+                color: #93c5fd;
+                font-weight: 700;
+                font-family: "Segoe UI Symbol", "Noto Sans Symbols", sans-serif;
+            }
+
+            .token-chip .name {
+                color: var(--ink);
+                opacity: 0.92;
+            }
+
+            .token-chip:hover {
+                background: var(--chip-hover);
+                transform: translateY(-1px);
+            }
+
+            .token-tools {
+                display: flex;
+                gap: 8px;
+                margin: 8px 0;
+            }
+
+            .token-tools button {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            .token-submenu {
+                margin-top: 10px;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                background: var(--bg2);
+                overflow: hidden;
+            }
+
+            .token-submenu summary {
+                cursor: pointer;
+                list-style: none;
+                padding: 10px;
+                font: 12px/1.2 Consolas, monospace;
+                color: var(--ink);
+                background: #0f172a;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .token-submenu summary::-webkit-details-marker {
+                display: none;
+            }
+
+            .token-submenu summary::before {
+                content: "▸ ";
+                color: #93c5fd;
+            }
+
+            .token-submenu[open] summary::before {
+                content: "▾ ";
+            }
+
+            .token-submenu-body {
+                padding: 8px;
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+                max-height: 220px;
+                overflow: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <section class="card">
+                <h1>Casio VM Program Runner</h1>
+                <p>
+                    Type token symbols (or token names) separated by spaces,
+                    commas, or new lines. Example: 1 + 2 × 3 :
+                </p>
+
+                <div class="display-screen">
+                    <div class="display-label">Display</div>
+                    <div id="displayValue" class="display-value dim">
+                        (hidden)
+                    </div>
+                </div>
+
+                <textarea id="program">1 + 2 × 3 :</textarea>
+
+                <div class="keypad">
+                    <h2>Calculator Keypad</h2>
+                    <p>Quick insert for common tokens.</p>
+                    <div id="keypad" class="keypad-grid">Loading keypad...</div>
+                </div>
+
+                <div class="row">
+                    <button id="runBtn">Execute Program</button>
+                    <button id="peekBtn" class="secondary">
+                        Peek VM State
+                    </button>
+                    <button id="resetBtn" class="ghost">Reset VM</button>
+                </div>
+
+                <p id="status" class="status"></p>
+
+                <h2>Execution Response</h2>
+                <pre id="result">{}</pre>
+
+                <h2>Current VM State</h2>
+                <pre id="state">{}</pre>
+            </section>
+
+            <aside class="card">
+                <h2>Token Reference</h2>
+                <p>Click a token to append it into the program input.</p>
+                <input id="tokenFilter" placeholder="Filter tokens..." />
+                <div class="token-tools">
+                    <button id="clearProgramBtn" class="ghost" type="button">
+                        Clear Program
+                    </button>
+                    <button id="popTokenBtn" class="secondary" type="button">
+                        Backspace Token
+                    </button>
+                </div>
+                <div id="tokenList" class="token-list">Loading tokens...</div>
+                <details id="constantsMenu" class="token-submenu">
+                    <summary id="constantsSummary">Constants</summary>
+                    <div id="constantsList" class="token-submenu-body">
+                        Loading constants...
+                    </div>
+                </details>
+            </aside>
+        </div>
+
+        <script>
+            const statusEl = document.getElementById("status");
+            const resultEl = document.getElementById("result");
+            const stateEl = document.getElementById("state");
+            const displayValueEl = document.getElementById("displayValue");
+            const programEl = document.getElementById("program");
+            const keypadEl = document.getElementById("keypad");
+            const tokenListEl = document.getElementById("tokenList");
+            const constantsListEl = document.getElementById("constantsList");
+            const constantsMenuEl = document.getElementById("constantsMenu");
+            const constantsSummaryEl = document.getElementById(
+                "constantsSummary",
+            );
+            const tokenFilterEl = document.getElementById("tokenFilter");
+            const clearProgramBtn = document.getElementById("clearProgramBtn");
+            const popTokenBtn = document.getElementById("popTokenBtn");
+
+            let tokens = [];
+
+            const keypadLayout = [
+                [
+                    "NUMBER_7",
+                    "NUMBER_8",
+                    "NUMBER_9",
+                    "DIVIDE",
+                    "LEFT_PARENTHESIS",
+                    "RIGHT_PARENTHESIS",
+                ],
+                [
+                    "NUMBER_4",
+                    "NUMBER_5",
+                    "NUMBER_6",
+                    "MULTIPLY",
+                    "SINE",
+                    "COSINE",
+                ],
+                ["NUMBER_1", "NUMBER_2", "NUMBER_3", "MINUS", "TANGENT", "PI"],
+                [
+                    "NUMBER_0",
+                    "DECIMAL_POINT",
+                    "ANSWER",
+                    "PLUS",
+                    "LOGARITHM",
+                    "NATURAL_LOGARITHM",
+                ],
+                [
+                    "POWER",
+                    "SQUARE_ROOT",
+                    "SQUARE",
+                    "NEGATIVE",
+                    "EXECUTION_DELIMITER",
+                    "DISPLAY",
+                ],
+            ];
+
+            const setStatus = (text, ok) => {
+                statusEl.textContent = text;
+                statusEl.className = `status ${ok ? "ok" : "err"}`;
+            };
+
+            const formatDisplayValue = (value) => {
+                if (typeof value !== "number" || !Number.isFinite(value)) {
+                    return String(value);
+                }
+
+                const rounded = Number(value.toPrecision(15));
+                if (Object.is(rounded, -0)) {
+                    return "0";
+                }
+                return String(rounded);
+            };
+
+            const updateDisplay = (state) => {
+                if (!state || !state.shouldDisplay) {
+                    displayValueEl.textContent = "(hidden)";
+                    displayValueEl.classList.add("dim");
+                    return;
+                }
+
+                displayValueEl.textContent = formatDisplayValue(state.answer);
+                displayValueEl.classList.remove("dim");
+            };
+
+            const appendToken = (tokenDisplay) => {
+                const current = programEl.value.trim();
+                programEl.value =
+                    current.length === 0
+                        ? tokenDisplay
+                        : `${current} ${tokenDisplay}`;
+                programEl.focus();
+            };
+
+            const popToken = () => {
+                const parts = programEl.value
+                    .split(/[\s,]+/g)
+                    .map((part) => part.trim())
+                    .filter(Boolean);
+                parts.pop();
+                programEl.value = parts.join(" ");
+                programEl.focus();
+            };
+
+            const renderTokens = () => {
+                const q = tokenFilterEl.value.trim().toUpperCase();
+                const filtered = q
+                    ? tokens.filter(
+                          (t) =>
+                              t.name.includes(q) ||
+                              (t.symbol || "").toUpperCase().includes(q) ||
+                              (t.button || "").toUpperCase().includes(q),
+                      )
+                    : tokens;
+
+                const regularTokens = filtered.filter(
+                    (t) => t.button !== "CONST",
+                );
+                const constantTokens = filtered.filter(
+                    (t) => t.button === "CONST",
+                );
+
+                tokenListEl.innerHTML = "";
+                constantsListEl.innerHTML = "";
+
+                const createChip = (token) => {
+                    const chip = document.createElement("button");
+                    chip.type = "button";
+                    chip.className = "token-chip";
+                    chip.innerHTML = `<span class="symbol">${
+                        token.symbol || "?"
+                    }</span><span class="name">${token.name}</span>`;
+                    chip.title = `${token.name} (${token.symbol || "?"})`;
+                    chip.addEventListener("click", () =>
+                        appendToken(token.symbol || token.name),
+                    );
+                    return chip;
+                };
+
+                for (const token of regularTokens) {
+                    tokenListEl.appendChild(createChip(token));
+                }
+
+                for (const token of constantTokens) {
+                    constantsListEl.appendChild(createChip(token));
+                }
+
+                constantsSummaryEl.textContent = `Constants (${constantTokens.length})`;
+                if (q.length > 0 && constantTokens.length > 0) {
+                    constantsMenuEl.open = true;
+                }
+
+                if (regularTokens.length === 0) {
+                    tokenListEl.textContent = "No matching tokens.";
+                }
+
+                if (constantTokens.length === 0) {
+                    constantsListEl.textContent = "No matching constants.";
+                }
+            };
+
+            const renderKeypad = () => {
+                const byName = new Map(tokens.map((t) => [t.name, t]));
+                keypadEl.innerHTML = "";
+
+                for (const row of keypadLayout) {
+                    for (const tokenName of row) {
+                        const token = byName.get(tokenName);
+                        if (!token) {
+                            continue;
+                        }
+
+                        const key = document.createElement("button");
+                        key.type = "button";
+                        key.className = "key";
+                        if (
+                            tokenName === "EXECUTION_DELIMITER" ||
+                            tokenName === "DISPLAY"
+                        ) {
+                            key.classList.add("accent");
+                        }
+                        if (tokenName === "NEGATIVE") {
+                            key.classList.add("warn");
+                        }
+                        key.innerHTML = `<span class="key-top">${
+                            token.symbol || "?"
+                        }</span><span class="key-bottom">${token.name}</span>`;
+                        key.title = `${token.name} (${token.symbol || "?"})`;
+                        key.addEventListener("click", () =>
+                            appendToken(token.symbol || token.name),
+                        );
+                        keypadEl.appendChild(key);
+                    }
+                }
+            };
+
+            const fetchState = async () => {
+                const res = await fetch("/api/state");
+                const body = await res.json();
+                stateEl.textContent = JSON.stringify(body.state, null, 2);
+                updateDisplay(body.state);
+            };
+
+            const fetchTokens = async () => {
+                const res = await fetch("/api/tokens");
+                const body = await res.json();
+                tokens = body.tokens || [];
+                renderTokens();
+                renderKeypad();
+            };
+
+            document
+                .getElementById("runBtn")
+                .addEventListener("click", async () => {
+                    setStatus("Executing...", true);
+                    const res = await fetch("/api/execute", {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ programText: programEl.value }),
+                    });
+                    const body = await res.json();
+                    resultEl.textContent = JSON.stringify(body, null, 2);
+                    await fetchState();
+                    updateDisplay(body.state);
+                    setStatus(
+                        res.ok ? "Execution complete." : "Execution failed.",
+                        res.ok,
+                    );
+                });
+
+            document
+                .getElementById("peekBtn")
+                .addEventListener("click", async () => {
+                    await fetchState();
+                    setStatus("State refreshed.", true);
+                });
+
+            document
+                .getElementById("resetBtn")
+                .addEventListener("click", async () => {
+                    const res = await fetch("/api/reset", { method: "POST" });
+                    const body = await res.json();
+                    resultEl.textContent = JSON.stringify(body, null, 2);
+                    await fetchState();
+                    updateDisplay(body.state);
+                    setStatus("VM reset.", true);
+                });
+
+            tokenFilterEl.addEventListener("input", renderTokens);
+            clearProgramBtn.addEventListener("click", () => {
+                programEl.value = "";
+                programEl.focus();
+            });
+            popTokenBtn.addEventListener("click", popToken);
+
+            fetchTokens();
+            fetchState();
+        </script>
+    </body>
+</html>
