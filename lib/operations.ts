@@ -1,349 +1,368 @@
-import { Error } from "./errors";
-import { AngleMode, NumberDisplayMode, RegressionMode } from "./modes";
+import { Error } from "@lib/errors";
+import { AngleMode, NumberDisplayMode, RegressionMode } from "@lib/modes";
+import Decimal from "decimal.js";
+
+Decimal.set({
+    precision: 20,
+    rounding: Decimal.ROUND_HALF_UP,
+});
+
+const PI = Decimal.acos(-1);
+
+const D = (value: Decimal.Value) => new Decimal(value);
 
 // meta
-const toRadians = (a: number, angleMode: AngleMode) => {
+export const _toRadians = (a: Decimal, angleMode: AngleMode) => {
     switch (angleMode) {
-        case AngleMode.DEGREE: return a * Math.PI / 180;
+        case AngleMode.DEGREE: return a.times(PI).div(180);
         case AngleMode.RADIAN: return a;
-        case AngleMode.GRADIAN: return a * Math.PI / 200;
+        case AngleMode.GRADIAN: return a.times(PI).div(200);
         default:
             throw Error.EMULATOR_ERROR;
     }
 }
-const toDegrees = (a: number, angleMode: AngleMode) => {
+export const _toDegrees = (a: Decimal, angleMode: AngleMode) => {
     switch (angleMode) {
         case AngleMode.DEGREE: return a;
-        case AngleMode.RADIAN: return a * 180 / Math.PI;
-        case AngleMode.GRADIAN: return a * 200 / Math.PI;
+        case AngleMode.RADIAN: return a.times(180).div(PI);
+        case AngleMode.GRADIAN: return a.times(180).div(200);
         default:
             throw Error.EMULATOR_ERROR;
     }
 }
-const toGradians = (a: number, angleMode: AngleMode) => {
+export const _toGradians = (a: Decimal, angleMode: AngleMode) => {
     switch (angleMode) {
-        case AngleMode.DEGREE: return a * 200 / 180;
-        case AngleMode.RADIAN: return a * 200 / Math.PI;
+        case AngleMode.DEGREE: return a.times(200).div(180);
+        case AngleMode.RADIAN: return a.times(200).div(PI);
         case AngleMode.GRADIAN: return a;
         default:
             throw Error.EMULATOR_ERROR;
     }
 }
-const multiplyFromTo = (a: number, b: number) => {
-    let result = 1;
-    for (let i = a; i <= b; i++) {
-        result *= i;
+export const _multiplyFromTo = (a: Decimal, b: Decimal) => {
+    if (a.gt(b) && !(a.isNegative() && b.isNegative())) { return D(1); }
+    let result = D(1);
+    const step = a.lte(b) ? D(1) : D(-1);
+    for (let i = a; (step.gt(0) ? i.lte(b) : i.gte(b)); i = i.plus(step)) {
+        result = result.times(i);
     }
     return result;
 }
-const isInteger = (a: number) => Number.isInteger(a);
+export const _mathErrorGuard = (a: Decimal) => {
+    if (!a.isFinite() || a.isNaN()) { throw Error.MATH_ERROR; }
+    return a;
+}
 
 // simple operators
 export class CommonOperators {
-    public static add = (a: number, b: number) => a + b;
-    public static subtract = (a: number, b: number) => a - b;
-    public static multiply = (a: number, b: number) => a * b;
-    public static divide = (a: number, b: number) => a / b;
-    public static sciExp = (a: number, b: number) => a * Math.pow(10, b);
-    public static negative = (a: number) => -a;
-    public static factorial = (a: number): number => {
-        if (a < 0) { throw Error.MATH_ERROR; }
-        if (!isInteger(a)) { throw Error.MATH_ERROR; }
-        return multiplyFromTo(1, a);
+    public static add = (a: Decimal, b: Decimal) => a.plus(b);
+    public static subtract = (a: Decimal, b: Decimal) => a.minus(b);
+    public static multiply = (a: Decimal, b: Decimal) => a.times(b);
+    public static divide = (a: Decimal, b: Decimal) => {
+        if (b.isZero()) { return _mathErrorGuard(a.div(b)); }
+        return _mathErrorGuard(a.div(b));
+    };
+    public static sciExp = (a: Decimal, b: Decimal) => a.times(D(10).pow(b));
+    public static negative = (a: Decimal) => a.negated();
+    public static factorial = (a: Decimal): Decimal => {
+        if (a.lt(0)) { throw Error.MATH_ERROR; }
+        if (!a.isInteger()) { throw Error.MATH_ERROR; }
+        return _multiplyFromTo(D(1), a);
     }
-    public static sin = (a: number, angleMode: AngleMode) => Math.sin(toRadians(a, angleMode));
-    public static cos = (a: number, angleMode: AngleMode) => Math.cos(toRadians(a, angleMode));
-    public static tan = (a: number, angleMode: AngleMode) => Math.tan(toRadians(a, angleMode));
-    public static sinh = (a: number, angleMode: AngleMode) => Math.sinh(toRadians(a, angleMode));
-    public static cosh = (a: number, angleMode: AngleMode) => Math.cosh(toRadians(a, angleMode));
-    public static tanh = (a: number, angleMode: AngleMode) => Math.tanh(toRadians(a, angleMode));
-    public static asin = (a: number, angleMode: AngleMode) => toDegrees(Math.asin(a), angleMode);
-    public static acos = (a: number, angleMode: AngleMode) => toDegrees(Math.acos(a), angleMode);
-    public static atan = (a: number, angleMode: AngleMode) => toDegrees(Math.atan(a), angleMode);
-    public static asinh = (a: number, angleMode: AngleMode) => toDegrees(Math.asinh(a), angleMode);
-    public static acosh = (a: number, angleMode: AngleMode) => toDegrees(Math.acosh(a), angleMode);
-    public static atanh = (a: number, angleMode: AngleMode) => toDegrees(Math.atanh(a), angleMode);
-    public static square = (a: number) => a * a;
-    public static sqrt = (a: number) => {
-        if (a < 0) { throw Error.MATH_ERROR; }
-        return Math.sqrt(a);
+    public static sin = (a: Decimal, angleMode: AngleMode) => _toRadians(a, angleMode).sin();
+    public static cos = (a: Decimal, angleMode: AngleMode) => _toRadians(a, angleMode).cos();
+    public static tan = (a: Decimal, angleMode: AngleMode) => {
+        const radians = _toRadians(a, angleMode);
+        if (radians.cos().abs().lte(D("1e-18"))) { throw Error.MATH_ERROR; }
+        return radians.tan();
+    };
+    public static sinh = (a: Decimal) => a.sinh();
+    public static cosh = (a: Decimal) => a.cosh();
+    public static tanh = (a: Decimal) => a.tanh();
+    public static asin = (a: Decimal, angleMode: AngleMode) => _mathErrorGuard(this.fromRadian(a.asin(), angleMode));
+    public static acos = (a: Decimal, angleMode: AngleMode) => _mathErrorGuard(this.fromRadian(a.acos(), angleMode));
+    public static atan = (a: Decimal, angleMode: AngleMode) => this.fromRadian(a.atan(), angleMode);
+    public static asinh = (a: Decimal) => a.asinh();
+    public static acosh = (a: Decimal) => _mathErrorGuard(a.acosh());
+    public static atanh = (a: Decimal) => _mathErrorGuard(a.atanh());
+    public static square = (a: Decimal) => a.times(a);
+    public static sqrt = (a: Decimal) => {
+        if (a.lt(0)) { throw Error.MATH_ERROR; }
+        return a.sqrt();
     }
-    public static power = (a: number, b: number) => {
-        if (a === 0 && b <= 0) { throw Error.MATH_ERROR; }
-        if (a > 0) { return Math.pow(a, b); }
-        const bdenominator = 1 / b;
-        while (!isInteger(bdenominator)) { b *= 10; }
-        if (b % 2 === 0) { throw Error.MATH_ERROR; }
-        return -Math.pow(-a, b);
+    public static power = (a: Decimal, b: Decimal) => {
+        if (a.isZero() && b.lte(0)) { throw Error.MATH_ERROR; }
+        if (a.isNegative() && !b.isInteger()) { throw Error.MATH_ERROR; }
+        return a.pow(b);
     }
-    public static log = (a: number, b?: number) => {
+    public static log = (a: Decimal, b?: Decimal) => {
         if (b === undefined) {
-            if (a <= 0) { throw Error.MATH_ERROR; }
-            return Math.log10(a);
+            if (a.lte(0)) { throw Error.MATH_ERROR; }
+            return a.log(10);
         } else {
-            if (a <= 0 || b <= 0 || a === 1) { throw Error.MATH_ERROR; }
-            return Math.log(b) / Math.log(a);
+            if (a.lte(0) || b.lte(0) || a.eq(1)) { throw Error.MATH_ERROR; }
+            return b.log(10).div(a.log(10));
         }
     }
-    public static ln = (a: number) => {
-        if (a <= 0) { throw Error.MATH_ERROR; }
-        return Math.log(a);
+    public static ln = (a: Decimal) => {
+        if (a.lte(0)) { throw Error.MATH_ERROR; }
+        return a.ln();
     }
-    public static exp = (a: number) => Math.exp(a);
-    public static inverse = (a: number) => {
-        if (a === 0) { throw Error.MATH_ERROR; }
-        return 1 / a;
+    public static exp = (a: Decimal) => a.exp();
+    public static inverse = (a: Decimal) => {
+        if (a.isZero()) { throw Error.MATH_ERROR; }
+        return D(1).div(a);
     }
-    public static cube = (a: number) => a * a * a;
-    public static cubeRoot = (a: number) => Math.pow(a, 1 / 3);
-    public static xRoot = (a: number, b: number) => {
-        if (a === 0) { throw Error.MATH_ERROR; }
-        if (b < 0 && a % 2 === 0) { throw Error.MATH_ERROR; }
-        return Math.pow(b, 1 / a); ``
+    public static cube = (a: Decimal) => a.pow(3);
+    public static cubeRoot = (a: Decimal) => a.pow(D(1).div(3));
+    public static xRoot = (a: Decimal, b: Decimal) => {
+        if (a.isZero()) { throw Error.MATH_ERROR; }
+        if (b.lt(0) && a.mod(2).isZero()) { throw Error.MATH_ERROR; }
+        return b.pow(D(1).div(a));
     }
-    public static round = (a: number, numberDisplayMode: NumberDisplayMode) => {
+    public static round = (a: Decimal, numberDisplayMode: NumberDisplayMode) => {
         switch (numberDisplayMode) {
-            case NumberDisplayMode.FIXED_POINT_0: return parseFloat(a.toFixed(0));
-            case NumberDisplayMode.FIXED_POINT_1: return parseFloat(a.toFixed(1));
-            case NumberDisplayMode.FIXED_POINT_2: return parseFloat(a.toFixed(2));
-            case NumberDisplayMode.FIXED_POINT_3: return parseFloat(a.toFixed(3));
-            case NumberDisplayMode.FIXED_POINT_4: return parseFloat(a.toFixed(4));
-            case NumberDisplayMode.FIXED_POINT_5: return parseFloat(a.toFixed(5));
-            case NumberDisplayMode.FIXED_POINT_6: return parseFloat(a.toFixed(6));
-            case NumberDisplayMode.FIXED_POINT_7: return parseFloat(a.toFixed(7));
-            case NumberDisplayMode.FIXED_POINT_8: return parseFloat(a.toFixed(8));
-            case NumberDisplayMode.FIXED_POINT_9: return parseFloat(a.toFixed(9));
+            case NumberDisplayMode.FIXED_POINT_0: return a.toDecimalPlaces(0);
+            case NumberDisplayMode.FIXED_POINT_1: return a.toDecimalPlaces(1);
+            case NumberDisplayMode.FIXED_POINT_2: return a.toDecimalPlaces(2);
+            case NumberDisplayMode.FIXED_POINT_3: return a.toDecimalPlaces(3);
+            case NumberDisplayMode.FIXED_POINT_4: return a.toDecimalPlaces(4);
+            case NumberDisplayMode.FIXED_POINT_5: return a.toDecimalPlaces(5);
+            case NumberDisplayMode.FIXED_POINT_6: return a.toDecimalPlaces(6);
+            case NumberDisplayMode.FIXED_POINT_7: return a.toDecimalPlaces(7);
+            case NumberDisplayMode.FIXED_POINT_8: return a.toDecimalPlaces(8);
+            case NumberDisplayMode.FIXED_POINT_9: return a.toDecimalPlaces(9);
             default:
                 return a;
         }
     }
-    public static random = () => Math.random();
-    public static fromDegree = (a: number, angleMode: AngleMode) => {
+    public static random = () => D(Math.random());
+    public static fromDegree = (a: Decimal, angleMode: AngleMode) => {
         switch (angleMode) {
             case AngleMode.DEGREE: return a;
-            case AngleMode.RADIAN: return toRadians(a, AngleMode.DEGREE);
-            case AngleMode.GRADIAN: return toGradians(a, AngleMode.DEGREE);
+            case AngleMode.RADIAN: return _toRadians(a, AngleMode.DEGREE);
+            case AngleMode.GRADIAN: return _toGradians(a, AngleMode.DEGREE);
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static fromRadian = (a: number, angleMode: AngleMode) => {
+    public static fromRadian = (a: Decimal, angleMode: AngleMode) => {
         switch (angleMode) {
-            case AngleMode.DEGREE: return toDegrees(a, AngleMode.RADIAN);
+            case AngleMode.DEGREE: return a.times(180).div(PI).toDecimalPlaces(14);
             case AngleMode.RADIAN: return a;
-            case AngleMode.GRADIAN: return toGradians(a, AngleMode.RADIAN);
+            case AngleMode.GRADIAN: return a.times(200).div(PI).toDecimalPlaces(14);
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static fromGradian = (a: number, angleMode: AngleMode) => {
+    public static fromGradian = (a: Decimal, angleMode: AngleMode) => {
         switch (angleMode) {
-            case AngleMode.DEGREE: return toDegrees(a, AngleMode.GRADIAN);
-            case AngleMode.RADIAN: return toRadians(a, AngleMode.GRADIAN);
+            case AngleMode.DEGREE: return _toDegrees(a, AngleMode.GRADIAN);
+            case AngleMode.RADIAN: return _toRadians(a, AngleMode.GRADIAN);
             case AngleMode.GRADIAN: return a;
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static polar = (a: number, b: number, angleMode: AngleMode) => ({
-        x: Math.sqrt(a * a + b * b),
-        y: this.fromRadian(Math.atan2(b, a), angleMode)
+    public static polar = (a: Decimal, b: Decimal, angleMode: AngleMode) => ({
+        x: a.pow(2).plus(b.pow(2)).sqrt(),
+        y: this.fromRadian(D(Math.atan2(b.toNumber(), a.toNumber())), angleMode)
     });
-    public static rectangular = (a: number, b: number, angleMode: AngleMode) => ({
-        x: a * Math.cos(toRadians(b, angleMode)),
-        y: a * Math.sin(toRadians(b, angleMode))
+    public static rectangular = (a: Decimal, b: Decimal, angleMode: AngleMode) => ({
+        x: a.times(_toRadians(b, angleMode).cos()),
+        y: a.times(_toRadians(b, angleMode).sin())
     });
-    public static permutation = (n: number, r: number) => {
-        if (n < 0 || r < 0 || n < r) { throw Error.MATH_ERROR; }
-        if (!isInteger(n) || !isInteger(r)) { throw Error.MATH_ERROR; }
-        if (r === 0) { return 1; }
-        let tfac = multiplyFromTo(1, n - r);
-        let nfac = tfac * multiplyFromTo(n - r + 1, n);
-        return nfac / tfac;
+    public static permutation = (n: Decimal, r: Decimal) => {
+        if (n.lt(0) || r.lt(0) || n.lt(r)) { throw Error.MATH_ERROR; }
+        if (!n.isInteger() || !r.isInteger()) { throw Error.MATH_ERROR; }
+        if (r.isZero()) { return D(1); }
+        const tfac = _multiplyFromTo(D(1), n.minus(r));
+        const nfac = tfac.times(_multiplyFromTo(n.minus(r).plus(1), n));
+        return nfac.div(tfac);
     }
-    public static combination = (n: number, r: number) => {
-        if (n < 0 || r < 0 || n < r) { throw Error.MATH_ERROR; }
-        if (!isInteger(n) || !isInteger(r)) { throw Error.MATH_ERROR; }
-        if (r === 0) { return 1; }
+    public static combination = (n: Decimal, r: Decimal) => {
+        if (n.lt(0) || r.lt(0) || n.lt(r)) { throw Error.MATH_ERROR; }
+        if (!n.isInteger() || !r.isInteger()) { throw Error.MATH_ERROR; }
+        if (r.isZero()) { return D(1); }
         let t1 = r;
-        let t2 = n - r;
-        if (t1 > t2) { [t1, t2] = [t2, t1]; }
-        // t1 <= t2
-        let t1fac = multiplyFromTo(1, t1);
-        let t2fac = t1fac * multiplyFromTo(t1 + 1, t2);
-        let nfac = t2fac * multiplyFromTo(t2 + 1, n);
-        return nfac / t2fac / t1fac;
+        let t2 = n.minus(r);
+        if (t1.gt(t2)) { [t1, t2] = [t2, t1]; }
+        const t1fac = _multiplyFromTo(D(1), t1);
+        const t2fac = t1fac.times(_multiplyFromTo(t1.plus(1), t2));
+        const nfac = t2fac.times(_multiplyFromTo(t2.plus(1), n));
+        return nfac.div(t2fac).div(t1fac);
     }
-    public static percent = (a: number) => a / 100;
-    public static abs = (a: number) => Math.abs(a);
+    public static percent = (a: Decimal) => a.div(100);
+    public static abs = (a: Decimal) => a.abs();
 }
-
 // complex-compatible operators
-type complex = { re: number, im: number }
+type complex = { re: Decimal, im: Decimal }
 export class ComplexOperators {
-    private static toComplex = (a: number): complex => (this.toComplex(a));
-    private static equal = (a: complex, b: complex) => a.re === b.re && a.im === b.im;
+    private static toComplex = (a: Decimal): complex => ({ re: a, im: D(0) });
+    private static equal = (a: complex, b: complex) => a.re.eq(b.re) && a.im.eq(b.im);
 
-    public static conjugate = (a: complex): complex => ({ re: a.re, im: -a.im });
+    public static conjugate = (a: complex): complex => ({ re: a.re, im: a.im.negated() });
     public static add = (a: complex, b: complex): complex => ({
-        re: a.re + b.re,
-        im: a.im + b.im
+        re: a.re.plus(b.re),
+        im: a.im.plus(b.im)
     });
     public static subtract = (a: complex, b: complex): complex => ({
-        re: a.re - b.re,
-        im: a.im - b.im
+        re: a.re.minus(b.re),
+        im: a.im.minus(b.im)
     });
     public static multiply = (a: complex, b: complex): complex => ({
-        re: a.re * b.re - a.im * b.im,
-        im: a.re * b.im + a.im * b.re
+        re: a.re.times(b.re).minus(a.im.times(b.im)),
+        im: a.re.times(b.im).plus(a.im.times(b.re))
     });
     public static divide = (a: complex, b: complex) => {
-        if (this.equal(b, this.toComplex(0))) { throw Error.MATH_ERROR; }
+        if (this.equal(b, this.toComplex(D(0)))) { throw Error.MATH_ERROR; }
         const conjugateB = this.conjugate(b);
         const nominator = this.multiply(a, conjugateB);
-        const denominator = b.re * b.re + b.im * b.im;
+        const denominator = b.re.pow(2).plus(b.im.pow(2));
         return {
-            re: nominator.re / denominator,
-            im: nominator.im / denominator
+            re: nominator.re.div(denominator),
+            im: nominator.im.div(denominator)
         }
     }
-    public static negative = (a: complex): complex => ({ re: -a.re, im: -a.im });
+    public static negative = (a: complex): complex => ({ re: a.re.negated(), im: a.im.negated() });
     public static sin = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.sin(a.re, angleMode));
     }
     public static cos = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.cos(a.re, angleMode));
     }
     public static tan = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.tan(a.re, angleMode));
     }
-    public static sinh = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.sinh(a.re, angleMode));
+    public static sinh = (a: complex): complex => {
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        return this.toComplex(CommonOperators.sinh(a.re));
     }
-    public static cosh = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.cosh(a.re, angleMode));
+    public static cosh = (a: complex): complex => {
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        return this.toComplex(CommonOperators.cosh(a.re));
     }
-    public static tanh = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.tanh(a.re, angleMode));
+    public static tanh = (a: complex): complex => {
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        return this.toComplex(CommonOperators.tanh(a.re));
     }
     public static asin = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.asin(a.re, angleMode));
     }
     public static acos = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.acos(a.re, angleMode));
     }
     public static atan = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.atan(a.re, angleMode));
     }
-    public static asinh = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.asinh(a.re, angleMode));
+    public static asinh = (a: complex): complex => {
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        return this.toComplex(CommonOperators.asinh(a.re));
     }
-    public static acosh = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.acosh(a.re, angleMode));
+    public static acosh = (a: complex): complex => {
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        return this.toComplex(CommonOperators.acosh(a.re));
     }
-    public static atanh = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
-        return this.toComplex(CommonOperators.atanh(a.re, angleMode));
+    public static atanh = (a: complex): complex => {
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        return this.toComplex(CommonOperators.atanh(a.re));
     }
     public static square = (a: complex): complex => this.multiply(a, a);
     public static sqrt = (a: complex): complex => {
-        if (a.im != 0) { throw Error.MATH_ERROR; }
-        if (a.re >= 0) {
-            return this.toComplex(Math.sqrt(a.re));
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
+        if (a.re.gte(0)) {
+            return this.toComplex(a.re.sqrt());
         } else {
-            return { re: 0, im: Math.sqrt(-a.re) };
+            return { re: D(0), im: a.re.negated().sqrt() };
         }
     }
     public static power = (a: complex, b: complex): complex => {
-        if (b.im !== 0) { throw Error.MATH_ERROR; }
-        if (this.equal(a, this.toComplex(0)) && b.re <= 0) { throw Error.MATH_ERROR; }
-        if (a.im === 0) { return this.toComplex(CommonOperators.power(a.re, b.re)) }
-        if (!isInteger(b.re)) { throw Error.MATH_ERROR; }
+        if (!b.im.isZero()) { throw Error.MATH_ERROR; }
+        if (this.equal(a, this.toComplex(D(0))) && b.re.lte(0)) { throw Error.MATH_ERROR; }
+        if (a.im.isZero()) { return this.toComplex(CommonOperators.power(a.re, b.re)) }
+        if (!b.re.isInteger()) { throw Error.MATH_ERROR; }
 
-        if (b.re === -1) { return this.inverse(a); }
-        if (b.re < 0) { throw Error.MATH_ERROR; }
+        if (b.re.eq(-1)) { return this.inverse(a); }
+        if (b.re.lt(0)) { throw Error.MATH_ERROR; }
+        if (b.re.isZero()) { return this.toComplex(D(1)); }
 
-        for (let i = 1; i < b.re; i++) {
-            a = this.multiply(a, a);
+        let result = a;
+        for (let i = D(1); i.lt(b.re); i = i.plus(1)) {
+            result = this.multiply(result, a);
         }
-        return a;
+        return result;
     }
     public static log = (a: complex): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.log(a.re));
     }
     public static ln = (a: complex): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.ln(a.re));
     }
-    public static exp = (a: complex): complex => this.power(this.toComplex(Math.E), a);
+    public static exp = (a: complex): complex => this.power(this.toComplex(D(Math.E)), a);
     public static inverse = (a: complex): complex => {
-        if (this.equal(a, this.toComplex(0))) { throw Error.MATH_ERROR; }
-        return this.divide(this.toComplex(1), a);
+        if (this.equal(a, this.toComplex(D(0)))) { throw Error.MATH_ERROR; }
+        return this.divide(this.toComplex(D(1)), a);
     }
     public static cube = (a: complex): complex => this.multiply(this.multiply(a, a), a);
     public static cubeRoot = (a: complex): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.cubeRoot(a.re));
     }
     public static xRoot = (a: complex, b: complex): complex => {
-        if (this.equal(a, this.toComplex(0))) { throw Error.MATH_ERROR; }
-        if (a.im !== 0 || b.im !== 0) { throw Error.MATH_ERROR; }
-        return this.toComplex(Math.pow(b.re, 1 / a.re));
+        if (this.equal(a, this.toComplex(D(0)))) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero() || !b.im.isZero()) { throw Error.MATH_ERROR; }
+        return this.toComplex(CommonOperators.xRoot(a.re, b.re));
     }
     public static round = (a: complex, numberDisplayMode: NumberDisplayMode): complex => {
         switch (numberDisplayMode) {
-            case NumberDisplayMode.FIXED_POINT_0: return { re: parseFloat(a.re.toFixed(0)), im: parseFloat(a.im.toFixed(0)) };
-            case NumberDisplayMode.FIXED_POINT_1: return { re: parseFloat(a.re.toFixed(1)), im: parseFloat(a.im.toFixed(1)) };
-            case NumberDisplayMode.FIXED_POINT_2: return { re: parseFloat(a.re.toFixed(2)), im: parseFloat(a.im.toFixed(2)) };
-            case NumberDisplayMode.FIXED_POINT_3: return { re: parseFloat(a.re.toFixed(3)), im: parseFloat(a.im.toFixed(3)) };
-            case NumberDisplayMode.FIXED_POINT_4: return { re: parseFloat(a.re.toFixed(4)), im: parseFloat(a.im.toFixed(4)) };
-            case NumberDisplayMode.FIXED_POINT_5: return { re: parseFloat(a.re.toFixed(5)), im: parseFloat(a.im.toFixed(5)) };
-            case NumberDisplayMode.FIXED_POINT_6: return { re: parseFloat(a.re.toFixed(6)), im: parseFloat(a.im.toFixed(6)) };
-            case NumberDisplayMode.FIXED_POINT_7: return { re: parseFloat(a.re.toFixed(7)), im: parseFloat(a.im.toFixed(7)) };
-            case NumberDisplayMode.FIXED_POINT_8: return { re: parseFloat(a.re.toFixed(8)), im: parseFloat(a.im.toFixed(8)) };
-            case NumberDisplayMode.FIXED_POINT_9: return { re: parseFloat(a.re.toFixed(9)), im: parseFloat(a.im.toFixed(9)) };
+            case NumberDisplayMode.FIXED_POINT_0: return { re: a.re.toDecimalPlaces(0), im: a.im.toDecimalPlaces(0) };
+            case NumberDisplayMode.FIXED_POINT_1: return { re: a.re.toDecimalPlaces(1), im: a.im.toDecimalPlaces(1) };
+            case NumberDisplayMode.FIXED_POINT_2: return { re: a.re.toDecimalPlaces(2), im: a.im.toDecimalPlaces(2) };
+            case NumberDisplayMode.FIXED_POINT_3: return { re: a.re.toDecimalPlaces(3), im: a.im.toDecimalPlaces(3) };
+            case NumberDisplayMode.FIXED_POINT_4: return { re: a.re.toDecimalPlaces(4), im: a.im.toDecimalPlaces(4) };
+            case NumberDisplayMode.FIXED_POINT_5: return { re: a.re.toDecimalPlaces(5), im: a.im.toDecimalPlaces(5) };
+            case NumberDisplayMode.FIXED_POINT_6: return { re: a.re.toDecimalPlaces(6), im: a.im.toDecimalPlaces(6) };
+            case NumberDisplayMode.FIXED_POINT_7: return { re: a.re.toDecimalPlaces(7), im: a.im.toDecimalPlaces(7) };
+            case NumberDisplayMode.FIXED_POINT_8: return { re: a.re.toDecimalPlaces(8), im: a.im.toDecimalPlaces(8) };
+            case NumberDisplayMode.FIXED_POINT_9: return { re: a.re.toDecimalPlaces(9), im: a.im.toDecimalPlaces(9) };
             default:
                 return a;
         }
     }
-    public static random = (): complex => { return this.toComplex(CommonOperators.random()); };
+    public static random = (): complex => ({ re: D(Math.random()), im: D(0) });
     public static fromDegree = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         switch (angleMode) {
             case AngleMode.DEGREE: return a;
-            case AngleMode.RADIAN: return this.toComplex(toRadians(a.re, AngleMode.DEGREE));
-            case AngleMode.GRADIAN: return this.toComplex(toGradians(a.re, AngleMode.DEGREE));
+            case AngleMode.RADIAN: return this.toComplex(_toRadians(a.re, AngleMode.DEGREE));
+            case AngleMode.GRADIAN: return this.toComplex(_toGradians(a.re, AngleMode.DEGREE));
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
     public static fromRadian = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         switch (angleMode) {
-            case AngleMode.DEGREE: return this.toComplex(toDegrees(a.re, AngleMode.RADIAN));
+            case AngleMode.DEGREE: return this.toComplex(_toDegrees(a.re, AngleMode.RADIAN));
             case AngleMode.RADIAN: return a;
-            case AngleMode.GRADIAN: return this.toComplex(toGradians(a.re, AngleMode.RADIAN));
+            case AngleMode.GRADIAN: return this.toComplex(_toGradians(a.re, AngleMode.RADIAN));
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
     public static fromGradian = (a: complex, angleMode: AngleMode): complex => {
-        if (a.im !== 0) { throw Error.MATH_ERROR; }
+        if (!a.im.isZero()) { throw Error.MATH_ERROR; }
         switch (angleMode) {
-            case AngleMode.DEGREE: return this.toComplex(toDegrees(a.re, AngleMode.GRADIAN));
-            case AngleMode.RADIAN: return this.toComplex(toRadians(a.re, AngleMode.GRADIAN));
+            case AngleMode.DEGREE: return this.toComplex(_toDegrees(a.re, AngleMode.GRADIAN));
+            case AngleMode.RADIAN: return this.toComplex(_toRadians(a.re, AngleMode.GRADIAN));
             case AngleMode.GRADIAN: return a;
             default:
                 throw Error.EMULATOR_ERROR;
@@ -352,254 +371,256 @@ export class ComplexOperators {
     public static polar = (a: complex): complex => a;
     public static rectangular = (a: complex): complex => a;
     public static angle = (r: complex, θ: complex, angleMode: AngleMode): complex => {
-        if (r.im !== 0 || θ.im !== 0) { throw Error.MATH_ERROR; }
-        let radianθ: number;
+        if (!r.im.isZero() || !θ.im.isZero()) { throw Error.MATH_ERROR; }
+        let radianθ: Decimal;
         switch (angleMode) {
             case AngleMode.DEGREE:
-                radianθ = toRadians(θ.re, AngleMode.DEGREE);
+                radianθ = D(_toRadians(θ.re, AngleMode.DEGREE));
                 break;
             case AngleMode.RADIAN:
                 radianθ = θ.re;
                 break;
             case AngleMode.GRADIAN:
-                radianθ = toRadians(θ.re, AngleMode.GRADIAN);
+                radianθ = D(_toRadians(θ.re, AngleMode.GRADIAN));
                 break;
             default:
                 throw Error.EMULATOR_ERROR;
         }
-        return { re: Math.cos(radianθ) * r.re, im: Math.sin(radianθ) * r.re };
+        return { re: radianθ.cos().times(r.re), im: radianθ.sin().times(r.re) };
     }
     public static permutation = (n: complex, r: complex): complex => {
-        if (n.im !== 0 || r.im !== 0) { throw Error.MATH_ERROR; }
+        if (!n.im.isZero() || !r.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.permutation(n.re, r.re));
     }
     public static combination = (n: complex, r: complex): complex => {
-        if (n.im !== 0 || r.im !== 0) { throw Error.MATH_ERROR; }
+        if (!n.im.isZero() || !r.im.isZero()) { throw Error.MATH_ERROR; }
         return this.toComplex(CommonOperators.combination(n.re, r.re));
     }
-    public static abs = (a: complex): complex => this.toComplex(Math.hypot(a.re, a.im));
+    public static abs = (a: complex): complex => ({ re: a.re.pow(2).plus(a.im.pow(2)).sqrt(), im: D(0) });
 }
 
 // base operators
 export class BaseOperators {
     // TODO: implement negative values for 2's complement
-    public static and = (a: number, b: number) => a & b;
-    public static or = (a: number, b: number) => a | b;
-    public static xnor = (a: number, b: number) => ~(a ^ b);
-    public static xor = (a: number, b: number) => a ^ b;
-    public static not = (a: number) => ~a;
-    public static negate = (a: number) => -a;
+    public static and = (a: Decimal, b: Decimal) => D(a.toNumber() & b.toNumber());
+    public static or = (a: Decimal, b: Decimal) => D(a.toNumber() | b.toNumber());
+    public static xnor = (a: Decimal, b: Decimal) => D(~(a.toNumber() ^ b.toNumber()));
+    public static xor = (a: Decimal, b: Decimal) => D(a.toNumber() ^ b.toNumber());
+    public static not = (a: Decimal) => D(~a.toNumber());
+    public static negate = (a: Decimal) => a.negated();
 }
 
 // statistics operators
 export class StatisticsOperators {
-    public static x2Sum = (xData: number[]) => {
-        if (xData.length === 0) { throw Error.MATH_ERROR; }
-        return xData.reduce((sum, x) => sum + x * x, 0);
-    }
-    public static xSum = (xData: number[]) => {
-        if (xData.length === 0) { throw Error.MATH_ERROR; }
-        return xData.reduce((sum, x) => sum + x, 0);
-    }
-    public static numberOfData = (xData: number[]) => {
-        if (xData.length === 0) { throw Error.MATH_ERROR; }
-        return xData.length;
-    }
-    public static y2Sum = (yData: number[]) => this.x2Sum(yData);
-    public static ySum = (yData: number[]) => this.xSum(yData);
-    public static xySum = (xData: number[], yData: number[]) => {
-        if (xData.length !== yData.length) { throw Error.EMULATOR_ERROR; }
-        if (xData.length === 0 || yData.length === 0) { throw Error.MATH_ERROR; }
-        return xData.reduce((sum, x, i) => sum + x * yData[i]!, 0);
-    }
-    public static x2ySum = (xData: number[], yData: number[]) => {
-        if (xData.length !== yData.length) { throw Error.EMULATOR_ERROR; }
-        if (xData.length === 0 || yData.length === 0) { throw Error.MATH_ERROR; }
-        return xData.reduce((sum, x, i) => sum + x * x * yData[i]!, 0);
-    }
-    public static x3Sum = (xData: number[]) => {
-        if (xData.length === 0) { throw Error.MATH_ERROR; }
-        return xData.reduce((sum, x) => sum + x * x * x, 0);
-    }
-    public static x4Sum = (xData: number[]) => {
-        if (xData.length === 0) { throw Error.MATH_ERROR; }
-        return xData.reduce((sum, x) => sum + x * x * x * x, 0);
-    }
-    private static lnSum = (data: number[]) => data.reduce((sum, x) => sum + CommonOperators.ln(x), 0);
-    private static ln2Sum = (data: number[]) => data.reduce((sum, x) => sum + CommonOperators.ln(x) * CommonOperators.ln(x), 0);
-    private static lnxySum = (xData: number[], yData: number[]) => xData.reduce((sum, x, i) => sum + CommonOperators.ln(x) * yData[i]!, 0);
-    private static xn1Sum = (xData: number[]) => xData.reduce((sum, x) => sum + CommonOperators.inverse(x), 0);
-    private static xn2Sum = (xData: number[]) => xData.reduce((sum, x) => sum + CommonOperators.inverse(x) * CommonOperators.inverse(x), 0);
-    private static xn1ySum = (xData: number[], yData: number[]) => xData.reduce((sum, x, i) => sum + CommonOperators.inverse(x) * yData[i]!, 0);
-    private static lnxlnySum = (xData: number[], yData: number[]) => xData.reduce((sum, x, i) => sum + CommonOperators.ln(x) * CommonOperators.ln(yData[i]!), 0);
+    private static sum = (values: Decimal[]) => values.reduce((sum, value) => sum.plus(value), D(0));
 
-    public static xMean = (xData: number[]) => {
+    public static x2Sum = (xData: Decimal[]) => {
         if (xData.length === 0) { throw Error.MATH_ERROR; }
-        return this.xSum(xData) / this.numberOfData(xData);
+        return xData.reduce((sum, x) => sum.plus(x.pow(2)), D(0));
     }
-    public static xStandardDeviation = (xData: number[]) => {
+    public static xSum = (xData: Decimal[]) => {
         if (xData.length === 0) { throw Error.MATH_ERROR; }
-        if (xData.length === 1) { return 0; }
+        return this.sum(xData);
+    }
+    public static numberOfData = (xData: Decimal[]) => {
+        if (xData.length === 0) { throw Error.MATH_ERROR; }
+        return D(xData.length);
+    }
+    public static y2Sum = (yData: Decimal[]) => this.x2Sum(yData);
+    public static ySum = (yData: Decimal[]) => this.xSum(yData);
+    public static xySum = (xData: Decimal[], yData: Decimal[]) => {
+        if (xData.length !== yData.length) { throw Error.EMULATOR_ERROR; }
+        if (xData.length === 0 || yData.length === 0) { throw Error.MATH_ERROR; }
+        return xData.reduce((sum, x, i) => sum.plus(x.times(yData[i]!)), D(0));
+    }
+    public static x2ySum = (xData: Decimal[], yData: Decimal[]) => {
+        if (xData.length !== yData.length) { throw Error.EMULATOR_ERROR; }
+        if (xData.length === 0 || yData.length === 0) { throw Error.MATH_ERROR; }
+        return xData.reduce((sum, x, i) => sum.plus(x.pow(2).times(yData[i]!)), D(0));
+    }
+    public static x3Sum = (xData: Decimal[]) => {
+        if (xData.length === 0) { throw Error.MATH_ERROR; }
+        return xData.reduce((sum, x) => sum.plus(x.pow(3)), D(0));
+    }
+    public static x4Sum = (xData: Decimal[]) => {
+        if (xData.length === 0) { throw Error.MATH_ERROR; }
+        return xData.reduce((sum, x) => sum.plus(x.pow(4)), D(0));
+    }
+    private static lnSum = (data: Decimal[]) => data.reduce((sum, x) => sum.plus(x.ln()), D(0));
+    private static ln2Sum = (data: Decimal[]) => data.reduce((sum, x) => sum.plus(x.ln().pow(2)), D(0));
+    private static lnxySum = (xData: Decimal[], yData: Decimal[]) => xData.reduce((sum, x, i) => sum.plus(x.ln().times(yData[i]!)), D(0));
+    private static xn1Sum = (xData: Decimal[]) => xData.reduce((sum, x) => sum.plus(x.isZero() ? D(Infinity) : x.pow(-1)), D(0));
+    private static xn2Sum = (xData: Decimal[]) => xData.reduce((sum, x) => sum.plus(x.isZero() ? D(Infinity) : x.pow(-2)), D(0));
+    private static xn1ySum = (xData: Decimal[], yData: Decimal[]) => xData.reduce((sum, x, i) => sum.plus(x.pow(-1).times(yData[i]!)), D(0));
+    private static lnxlnySum = (xData: Decimal[], yData: Decimal[]) => xData.reduce((sum, x, i) => sum.plus(x.ln().times(yData[i]!.ln())), D(0));
+
+    public static xMean = (xData: Decimal[]) => {
+        if (xData.length === 0) { throw Error.MATH_ERROR; }
+        return this.xSum(xData).div(this.numberOfData(xData));
+    }
+    public static xStandardDeviation = (xData: Decimal[]) => {
+        if (xData.length === 0) { throw Error.MATH_ERROR; }
+        if (xData.length === 1) { return D(0); }
         const mean = this.xMean(xData);
-        return Math.sqrt(xData.reduce((sum, x) => sum + (x - mean) * (x - mean), 0) / this.numberOfData(xData));
+        return xData.reduce((sum, x) => sum.plus(x.minus(mean).pow(2)), D(0)).div(this.numberOfData(xData)).sqrt();
     }
-    public static xSampleStandardDeviation = (xData: number[]) => {
+    public static xSampleStandardDeviation = (xData: Decimal[]) => {
         if (xData.length === 0) { throw Error.MATH_ERROR; }
-        if (xData.length === 1) { return 0; }
+        if (xData.length === 1) { return D(0); }
         const mean = this.xMean(xData);
-        return Math.sqrt(xData.reduce((sum, x) => sum + (x - mean) * (x - mean), 0) / (this.numberOfData(xData) - 1));
+        return xData.reduce((sum, x) => sum.plus(x.minus(mean).pow(2)), D(0)).div(this.numberOfData(xData).minus(1)).sqrt();
     }
-    public static yMean = (yData: number[]) => this.xMean(yData);
-    public static yStandardDeviation = (yData: number[]) => this.xStandardDeviation(yData)
-    public static ySampleStandardDeviation = (yData: number[]) => this.xSampleStandardDeviation(yData);
-    public static xMin = (xData: number[]) => {
+    public static yMean = (yData: Decimal[]) => this.xMean(yData);
+    public static yStandardDeviation = (yData: Decimal[]) => this.xStandardDeviation(yData)
+    public static ySampleStandardDeviation = (yData: Decimal[]) => this.xSampleStandardDeviation(yData);
+    public static xMin = (xData: Decimal[]) => {
         if (xData.length === 0) { throw Error.MATH_ERROR; }
-        return Math.min(...xData);
+        return xData.reduce((min, x) => x.lt(min) ? x : min);
     }
-    public static xMax = (xData: number[]) => {
+    public static xMax = (xData: Decimal[]) => {
         if (xData.length === 0) { throw Error.MATH_ERROR; }
-        return Math.max(...xData);
+        return xData.reduce((max, x) => x.gt(max) ? x : max);
     }
-    public static yMin = (yData: number[]) => this.xMin(yData);
-    public static yMax = (yData: number[]) => this.xMax(yData);
+    public static yMin = (yData: Decimal[]) => this.xMin(yData);
+    public static yMax = (yData: Decimal[]) => this.xMax(yData);
 
     // linear regression
-    private static linearRegression = (xData: number[], yData: number[], { x, y }: { x?: number, y?: number }) => {
+    private static linearRegression = (xData: Decimal[], yData: Decimal[], { x, y }: { x?: Decimal, y?: Decimal }) => {
         const n = this.numberOfData(xData);
         const xySum = this.xySum(xData, yData);
         const xSum = this.xSum(xData);
         const ySum = this.ySum(yData);
         const x2Sum = this.x2Sum(xData);
 
-        const b = (n * xySum - xSum * ySum) / (n * x2Sum - xSum * xSum);
-        const a = (ySum - b * xSum) / n;
+        const b = n.times(xySum).minus(xSum.times(ySum)).div(n.times(x2Sum).minus(xSum.pow(2)));
+        const a = ySum.minus(b.times(xSum)).div(n);
         if (x !== undefined && y !== undefined) { throw Error.EMULATOR_ERROR; }
         if (x !== undefined) {
-            y = a + b * x;
+            y = a.plus(b.times(x));
         } else if (y !== undefined) {
-            x = (y - a) / b;
+            x = y.minus(a).div(b);
         }
         return { a, b, x, y };
     }
-    private static linearRegressionCorrelationCoefficient = (xData: number[], yData: number[]) => {
+    private static linearRegressionCorrelationCoefficient = (xData: Decimal[], yData: Decimal[]) => {
         const n = this.numberOfData(xData);
         const xySum = this.xySum(xData, yData);
         const xSum = this.xSum(xData);
         const ySum = this.ySum(yData);
         const x2Sum = this.x2Sum(xData);
         const y2Sum = this.y2Sum(yData);
-        return (n * xySum - xSum * ySum) / CommonOperators.sqrt((n * x2Sum - xSum * xSum) * (n * y2Sum - ySum * ySum));
+        return n.times(xySum).minus(xSum.times(ySum)).div(n.times(x2Sum).minus(xSum.pow(2)).times(n.times(y2Sum).minus(ySum.pow(2))).sqrt());
     }
     // logarithmic regression
-    private static logarithmicRegression = (xData: number[], yData: number[], { x, y }: { x?: number, y?: number }) => {
+    private static logarithmicRegression = (xData: Decimal[], yData: Decimal[], { x, y }: { x?: Decimal, y?: Decimal }) => {
         const n = this.numberOfData(xData);
         const lnxySum = this.lnxySum(xData, yData);
         const lnxSum = this.lnSum(xData);
         const ySum = this.ySum(yData);
         const lnx2Sum = this.ln2Sum(xData);
 
-        const b = (n * lnxySum - lnxSum * ySum) / (n * lnx2Sum - lnxSum * lnxSum);
-        const a = (ySum - b * lnxSum) / n;
+        const b = n.times(lnxySum).minus(lnxSum.times(ySum)).div(n.times(lnx2Sum).minus(lnxSum.pow(2)));
+        const a = ySum.minus(b.times(lnxSum)).div(n);
         if (x !== undefined && y !== undefined) { throw Error.EMULATOR_ERROR; }
         if (x !== undefined) {
-            y = a + b * CommonOperators.ln(x);
+            y = a.plus(b.times(CommonOperators.ln(x)));
         } else if (y !== undefined) {
-            x = CommonOperators.exp((y - a) / b);
+            x = CommonOperators.exp(y.minus(a).div(b));
         }
         return { a, b, x, y };
     }
-    private static logarithmicRegressionCorrelationCoefficient = (xData: number[], yData: number[]) => {
+    private static logarithmicRegressionCorrelationCoefficient = (xData: Decimal[], yData: Decimal[]) => {
         const n = this.numberOfData(xData);
         const lnxySum = this.lnxySum(xData, yData);
         const lnxSum = this.lnSum(xData);
         const ySum = this.ySum(yData);
         const lnx2Sum = this.ln2Sum(xData);
         const y2Sum = this.y2Sum(yData);
-        return (n * lnxySum - lnxSum * ySum) / CommonOperators.sqrt((n * lnx2Sum - lnxSum * lnxSum) * (n * y2Sum - ySum * ySum));
+        return n.times(lnxySum).minus(lnxSum.times(ySum)).div(n.times(lnx2Sum).minus(lnxSum.pow(2)).times(n.times(y2Sum).minus(ySum.pow(2))).sqrt());
     }
     // exponential regression
-    private static exponentialRegression = (xData: number[], yData: number[], { x, y }: { x?: number, y?: number }) => {
+    private static exponentialRegression = (xData: Decimal[], yData: Decimal[], { x, y }: { x?: Decimal, y?: Decimal }) => {
         const n = this.numberOfData(xData);
         const lnyxSum = this.lnxySum(yData, xData);
         const xSum = this.xSum(xData);
         const lnySum = this.lnSum(yData);
         const x2Sum = this.x2Sum(xData);
 
-        const b = (n * lnyxSum - xSum * lnySum) / (n * x2Sum - xSum * xSum);
-        const a = CommonOperators.exp((lnySum - b * xSum) / n);
+        const b = n.times(lnyxSum).minus(xSum.times(lnySum)).div(n.times(x2Sum).minus(xSum.pow(2)));
+        const a = CommonOperators.exp(lnySum.minus(b.times(xSum)).div(n));
         if (x !== undefined && y !== undefined) { throw Error.EMULATOR_ERROR; }
         if (x !== undefined) {
-            y = a * CommonOperators.exp(b * x);
+            y = a.times(CommonOperators.exp(b.times(x)));
         } else if (y !== undefined) {
-            x = CommonOperators.ln(y / a) / b;
+            x = CommonOperators.ln(y.div(a)).div(b);
         }
         return { a, b, x, y };
     }
-    private static exponentialRegressionCorrelationCoefficient = (xData: number[], yData: number[]) => {
+    private static exponentialRegressionCorrelationCoefficient = (xData: Decimal[], yData: Decimal[]) => {
         const n = this.numberOfData(xData);
         const lnyxSum = this.lnxySum(yData, xData);
         const xSum = this.xSum(xData);
         const lnySum = this.lnSum(yData);
         const x2Sum = this.x2Sum(xData);
         const lny2Sum = this.ln2Sum(yData);
-        return (n * lnyxSum - xSum * lnySum) / CommonOperators.sqrt((n * x2Sum - xSum * xSum) * (n * lny2Sum - lnySum * lnySum));
+        return n.times(lnyxSum).minus(xSum.times(lnySum)).div(n.times(x2Sum).minus(xSum.pow(2)).times(n.times(lny2Sum).minus(lnySum.pow(2))).sqrt());
     }
     // power regression
-    private static powerRegression = (xData: number[], yData: number[], { x, y }: { x?: number, y?: number }) => {
+    private static powerRegression = (xData: Decimal[], yData: Decimal[], { x, y }: { x?: Decimal, y?: Decimal }) => {
         const n = this.numberOfData(xData);
         const lnxlnySum = this.lnxlnySum(xData, yData);
         const lnxSum = this.lnSum(xData);
         const lnySum = this.lnSum(yData);
         const lnx2Sum = this.ln2Sum(xData);
 
-        const b = (n * lnxlnySum - lnxSum * lnySum) / (n * lnx2Sum - lnxSum * lnxSum);
-        const a = CommonOperators.exp((lnySum - b * lnxSum) / n);
+        const b = n.times(lnxlnySum).minus(lnxSum.times(lnySum)).div(n.times(lnx2Sum).minus(lnxSum.pow(2)));
+        const a = CommonOperators.exp(lnySum.minus(b.times(lnxSum)).div(n));
         if (x !== undefined && y !== undefined) { throw Error.EMULATOR_ERROR; }
         if (x !== undefined) {
-            y = a * CommonOperators.power(x, b);
+            y = a.times(CommonOperators.power(x, b));
         } else if (y !== undefined) {
-            x = CommonOperators.power(y / a, 1 / b);
+            x = CommonOperators.power(y.div(a), D(1).div(b));
         }
         return { a, b, x, y };
     }
-    private static powerRegressionCorrelationCoefficient = (xData: number[], yData: number[]) => {
+    private static powerRegressionCorrelationCoefficient = (xData: Decimal[], yData: Decimal[]) => {
         const n = this.numberOfData(xData);
         const lnxlnySum = this.lnxlnySum(xData, yData);
         const lnxSum = this.lnSum(xData);
         const lnySum = this.lnSum(yData);
         const lnx2Sum = this.ln2Sum(xData);
         const lny2Sum = this.ln2Sum(yData);
-        return (n * lnxlnySum - lnxSum * lnySum) / CommonOperators.sqrt((n * lnx2Sum - lnxSum * lnxSum) * (n * lny2Sum - lnySum * lnySum));
+        return n.times(lnxlnySum).minus(lnxSum.times(lnySum)).div(n.times(lnx2Sum).minus(lnxSum.pow(2)).times(n.times(lny2Sum).minus(lnySum.pow(2))).sqrt());
     }
     // inverse regression
-    private static inverseRegression = (xData: number[], yData: number[], { x, y }: { x?: number, y?: number }) => {
+    private static inverseRegression = (xData: Decimal[], yData: Decimal[], { x, y }: { x?: Decimal, y?: Decimal }) => {
         const n = this.numberOfData(xData);
         const xn1ySum = this.xn1ySum(xData, yData);
         const xn1Sum = this.xn1Sum(xData);
         const ySum = this.ySum(yData);
         const xn2Sum = this.xn2Sum(xData);
 
-        const b = (n * xn1ySum - xn1Sum * ySum) / (n * xn2Sum - xn1Sum * xn1Sum);
-        const a = (ySum - b * xn1Sum) / n;
+        const b = n.times(xn1ySum).minus(xn1Sum.times(ySum)).div(n.times(xn2Sum).minus(xn1Sum.pow(2)));
+        const a = ySum.minus(b.times(xn1Sum)).div(n);
         if (x !== undefined && y !== undefined) { throw Error.EMULATOR_ERROR; }
         if (x !== undefined) {
-            y = a + b * CommonOperators.inverse(x);
+            y = a.plus(b.times(CommonOperators.inverse(x)));
         } else if (y !== undefined) {
-            x = CommonOperators.inverse((y - a) / b);
+            x = CommonOperators.inverse(y.minus(a).div(b));
         }
         return { a, b, x, y };
     }
-    private static inverseRegressionCorrelationCoefficient = (xData: number[], yData: number[]) => {
+    private static inverseRegressionCorrelationCoefficient = (xData: Decimal[], yData: Decimal[]) => {
         const n = this.numberOfData(xData);
         const xn1ySum = this.xn1ySum(xData, yData);
         const xn1Sum = this.xn1Sum(xData);
         const ySum = this.ySum(yData);
         const xn2Sum = this.xn2Sum(xData);
         const y2Sum = this.y2Sum(yData);
-        return (n * xn1ySum - xn1Sum * ySum) / CommonOperators.sqrt((n * xn2Sum - xn1Sum * xn1Sum) * (n * y2Sum - ySum * ySum));
+        return n.times(xn1ySum).minus(xn1Sum.times(ySum)).div(n.times(xn2Sum).minus(xn1Sum.pow(2)).times(n.times(y2Sum).minus(ySum.pow(2))).sqrt());
     }
     // quadratic regression
-    private static quadraticRegression = (xData: number[], yData: number[], { x, y }: { x?: number, y?: number }) => {
+    private static quadraticRegression = (xData: Decimal[], yData: Decimal[], { x, y }: { x?: Decimal, y?: Decimal }) => {
         const n = this.numberOfData(xData);
         const x4Sum = this.x4Sum(xData);
         const x3Sum = this.x3Sum(xData);
@@ -609,122 +630,122 @@ export class StatisticsOperators {
         const xSum = this.xSum(xData);
         const ySum = this.ySum(yData);
 
-        const sxx = x2Sum - xSum * xSum / n;
-        const sxy = xySum - xSum * ySum / n;
-        const sxx2 = x3Sum - xSum * x2Sum / n;
-        const sx2x2 = x4Sum - x2Sum * x2Sum / n;
-        const sx2y = x2ySum - x2Sum * ySum / n;
+        const sxx = x2Sum.minus(xSum.pow(2).div(n));
+        const sxy = xySum.minus(xSum.times(ySum).div(n));
+        const sxx2 = x3Sum.minus(xSum.times(x2Sum).div(n));
+        const sx2x2 = x4Sum.minus(x2Sum.pow(2).div(n));
+        const sx2y = x2ySum.minus(x2Sum.times(ySum).div(n));
 
-        const b = (sxy * sx2x2 - sx2y * sxx2) / (sxx * sx2x2 - sxx2 * sxx2);
-        const c = (sx2y * sxx - sxy * sxx2) / (sxx * sx2x2 - sxx2 * sxx2);
-        const a = (ySum - b * xSum - c * x2Sum) / n;
+        const b = sxy.times(sx2x2).minus(sx2y.times(sxx2)).div(sxx.times(sx2x2).minus(sxx2.pow(2)));
+        const c = sx2y.times(sxx).minus(sxy.times(sxx2)).div(sxx.times(sx2x2).minus(sxx2.pow(2)));
+        const a = ySum.minus(b.times(xSum)).minus(c.times(x2Sum)).div(n);
         if (x !== undefined && y !== undefined) { throw Error.EMULATOR_ERROR; }
         let x1 = x;
         let x2 = x;
         if (x !== undefined) {
-            y = a + b * x + c * x * x;
+            y = a.plus(b.times(x)).plus(c.times(x.pow(2)));
         } else if (y !== undefined) {
-            const discriminant = b * b - 4 * c * (a - y);
-            if (discriminant < 0) { throw Error.MATH_ERROR; }
+            const discriminant = b.pow(2).minus(D(4).times(c).times(a.minus(y)));
+            if (discriminant.lt(0)) { throw Error.MATH_ERROR; }
             const sqrtDiscriminant = CommonOperators.sqrt(discriminant);
-            x1 = (-b + sqrtDiscriminant) / (2 * c);
-            x2 = (-b - sqrtDiscriminant) / (2 * c);
+            x1 = b.negated().plus(sqrtDiscriminant).div(D(2).times(c));
+            x2 = b.negated().minus(sqrtDiscriminant).div(D(2).times(c));
         }
         return { a, b, c, x1, x2, y };
     }
     // ab exponential regression
-    private static abExponentialRegression = (xData: number[], yData: number[], { x, y }: { x?: number, y?: number }) => {
+    private static abExponentialRegression = (xData: Decimal[], yData: Decimal[], { x, y }: { x?: Decimal, y?: Decimal }) => {
         const n = this.numberOfData(xData);
         const xlnySum = this.lnxySum(yData, xData);
         const xSum = this.xSum(xData);
         const lnySum = this.lnSum(yData);
         const x2Sum = this.x2Sum(xData);
 
-        const b = CommonOperators.exp((n * xlnySum - xSum * lnySum) / (n * x2Sum - xSum * xSum));
-        const a = CommonOperators.exp((lnySum - CommonOperators.ln(b) * xSum) / n);
+        const b = CommonOperators.exp(n.times(xlnySum).minus(xSum.times(lnySum)).div(n.times(x2Sum).minus(xSum.pow(2))));
+        const a = CommonOperators.exp(lnySum.minus(CommonOperators.ln(b).times(xSum)).div(n));
         if (x !== undefined && y !== undefined) { throw Error.EMULATOR_ERROR; }
         if (x !== undefined) {
-            y = a * CommonOperators.power(b, x);
+            y = a.times(CommonOperators.power(b, x));
         } else if (y !== undefined) {
-            x = CommonOperators.ln(y / a) / CommonOperators.ln(b);
+            x = CommonOperators.ln(y.div(a)).div(CommonOperators.ln(b));
         }
         return { a, b, x, y };
     }
-    private static abExponentialRegressionCorrelationCoefficient = (xData: number[], yData: number[]) => {
+    private static abExponentialRegressionCorrelationCoefficient = (xData: Decimal[], yData: Decimal[]) => {
         const n = this.numberOfData(xData);
         const xlnySum = this.lnxySum(yData, xData);
         const xSum = this.xSum(xData);
         const lnySum = this.lnSum(yData);
         const x2Sum = this.x2Sum(xData);
         const lny2Sum = this.ln2Sum(yData);
-        return (n * xlnySum - xSum * lnySum) / CommonOperators.sqrt((n * x2Sum - xSum * xSum) * (n * lny2Sum - lnySum * lnySum));
+        return n.times(xlnySum).minus(xSum.times(lnySum)).div(n.times(x2Sum).minus(xSum.pow(2)).times(n.times(lny2Sum).minus(lnySum.pow(2))).sqrt());
     }
     // 
-    public static regressionA = (xData: number[], yData: number[], regressionMode: RegressionMode) => {
+    public static regressionA = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode) => {
         switch (regressionMode) {
-            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, {}).a;
-            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, {}).a;
-            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, {}).a;
-            case RegressionMode.POWER: return this.powerRegression(xData, yData, {}).a;
-            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, {}).a;
+            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, {}).a!;
+            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, {}).a!;
+            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, {}).a!;
+            case RegressionMode.POWER: return this.powerRegression(xData, yData, {}).a!;
+            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, {}).a!;
             case RegressionMode.QUADRATIC: return this.quadraticRegression(xData, yData, {}).a;
-            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, {}).a;
+            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, {}).a!;
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static regressionB = (xData: number[], yData: number[], regressionMode: RegressionMode) => {
+    public static regressionB = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode) => {
         switch (regressionMode) {
-            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, {}).b;
-            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, {}).b;
-            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, {}).b;
-            case RegressionMode.POWER: return this.powerRegression(xData, yData, {}).b;
-            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, {}).b;
+            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, {}).b!;
+            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, {}).b!;
+            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, {}).b!;
+            case RegressionMode.POWER: return this.powerRegression(xData, yData, {}).b!;
+            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, {}).b!;
             case RegressionMode.QUADRATIC: return this.quadraticRegression(xData, yData, {}).b;
-            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, {}).b;
+            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, {}).b!;
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static regressionC = (xData: number[], yData: number[], regressionMode: RegressionMode) => {
+    public static regressionC = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode) => {
         if (regressionMode !== RegressionMode.QUADRATIC) { throw Error.EMULATOR_ERROR; }
         return this.quadraticRegression(xData, yData, {}).c;
     }
-    public static estimatedX = (xData: number[], yData: number[], regressionMode: RegressionMode, y: number) => {
+    public static estimatedX = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode, y: Decimal) => {
         switch (regressionMode) {
-            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, { y }).x;
-            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, { y }).x;
-            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, { y }).x;
-            case RegressionMode.POWER: return this.powerRegression(xData, yData, { y }).x;
-            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, { y }).x;
+            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, { y }).x!;
+            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, { y }).x!;
+            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, { y }).x!;
+            case RegressionMode.POWER: return this.powerRegression(xData, yData, { y }).x!;
+            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, { y }).x!;
             case RegressionMode.QUADRATIC: throw Error.EMULATOR_ERROR;
-            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, { y }).x;
+            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, { y }).x!;
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static estimatedX1 = (xData: number[], yData: number[], regressionMode: RegressionMode, y: number) => {
+    public static estimatedX1 = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode, y: Decimal) => {
         if (regressionMode !== RegressionMode.QUADRATIC) { throw Error.EMULATOR_ERROR; }
-        return this.quadraticRegression(xData, yData, { y }).x1;
+        return this.quadraticRegression(xData, yData, { y }).x1!;
     }
-    public static estimatedX2 = (xData: number[], yData: number[], regressionMode: RegressionMode, y: number) => {
+    public static estimatedX2 = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode, y: Decimal) => {
         if (regressionMode !== RegressionMode.QUADRATIC) { throw Error.EMULATOR_ERROR; }
-        return this.quadraticRegression(xData, yData, { y }).x2;
+        return this.quadraticRegression(xData, yData, { y }).x2!;
     }
-    public static estimatedY = (xData: number[], yData: number[], regressionMode: RegressionMode, x: number) => {
+    public static estimatedY = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode, x: Decimal) => {
         switch (regressionMode) {
-            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, { x }).y;
-            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, { x }).y;
-            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, { x }).y;
-            case RegressionMode.POWER: return this.powerRegression(xData, yData, { x }).y;
-            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, { x }).y;
-            case RegressionMode.QUADRATIC: return this.quadraticRegression(xData, yData, { x }).y;
-            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, { x }).y;
+            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, { x }).y!;
+            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, { x }).y!;
+            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, { x }).y!;
+            case RegressionMode.POWER: return this.powerRegression(xData, yData, { x }).y!;
+            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, { x }).y!;
+            case RegressionMode.QUADRATIC: return this.quadraticRegression(xData, yData, { x }).y!;
+            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, { x }).y!;
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static correlationCoefficient = (xData: number[], yData: number[], regressionMode: RegressionMode) => {
+    public static correlationCoefficient = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode) => {
         switch (regressionMode) {
             case RegressionMode.LINEAR: return this.linearRegressionCorrelationCoefficient(xData, yData);
             case RegressionMode.LOGARITHMIC: return this.logarithmicRegressionCorrelationCoefficient(xData, yData);

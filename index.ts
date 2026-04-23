@@ -1,5 +1,5 @@
-import { Token, TokenButton, TokenSymbol } from "./lib/tokens";
-import { VM } from "./lib/vm";
+import { Token, TokenButton, TokenSymbol } from "@lib/tokens";
+import { VM } from "@lib/vm";
 
 const vm = new VM();
 const tokenMap = new Map<string, Token>();

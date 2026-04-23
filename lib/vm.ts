@@ -1,7 +1,11 @@
-import { Error } from "./errors";
-import { CommonOperators } from "./operations";
-import { AngleMode, CalculatorMode, FrequencyMode, NumberBase, NumberDisplayMode, RegressionMode } from "./modes";
-import { Token, TokenSymbol } from "./tokens";
+import { Error } from "@lib/errors";
+import { CommonOperators } from "@lib/operations";
+import { AngleMode, CalculatorMode, FrequencyMode, NumberBase, NumberDisplayMode, RegressionMode } from "@lib/modes";
+import { Token, TokenSymbol } from "@lib/tokens";
+import Decimal from "decimal.js";
+
+const decimal = (value: Decimal.Value) => new Decimal(value);
+const decimalToNumber = (value: Decimal) => value.toNumber();
 
 class State {
     public calculatorMode: CalculatorMode;
@@ -10,14 +14,14 @@ class State {
     public frequencyMode: FrequencyMode;
     public numberBase: NumberBase;
     public regressionMode: RegressionMode;
-    public a: number;
-    public b: number;
-    public c: number;
-    public d: number;
-    public x: number;
-    public y: number;
-    public m: number;
-    public answer: number;
+    private _a: Decimal;
+    private _b: Decimal;
+    private _c: Decimal;
+    private _d: Decimal;
+    private _x: Decimal;
+    private _y: Decimal;
+    private _m: Decimal;
+    private _answer: Decimal;
     public shouldDisplay: boolean;
     public xData: number[];
     public yData: number[];
@@ -65,24 +69,93 @@ class State {
         this.frequencyMode = frequencyMode ?? FrequencyMode.ON;
         this.numberBase = numberBase ?? NumberBase.DECIMAL;
         this.regressionMode = regressionMode ?? RegressionMode.LINEAR;
-        this.a = a ?? 0;
-        this.b = b ?? 0;
-        this.c = c ?? 0;
-        this.d = d ?? 0;
-        this.x = x ?? 0;
-        this.y = y ?? 0;
-        this.m = m ?? 0;
-        this.answer = answer ?? 0;
+        this._a = decimal(a ?? 0);
+        this._b = decimal(b ?? 0);
+        this._c = decimal(c ?? 0);
+        this._d = decimal(d ?? 0);
+        this._x = decimal(x ?? 0);
+        this._y = decimal(y ?? 0);
+        this._m = decimal(m ?? 0);
+        this._answer = decimal(answer ?? 0);
         this.shouldDisplay = shouldDisplay ?? false;
         this.xData = xData ?? [];
         this.yData = yData ?? [];
+    }
+
+    public get a(): number { return decimalToNumber(this._a); }
+    public set a(value: number) { this._a = decimal(value); }
+    public get b(): number { return decimalToNumber(this._b); }
+    public set b(value: number) { this._b = decimal(value); }
+    public get c(): number { return decimalToNumber(this._c); }
+    public set c(value: number) { this._c = decimal(value); }
+    public get d(): number { return decimalToNumber(this._d); }
+    public set d(value: number) { this._d = decimal(value); }
+    public get x(): number { return decimalToNumber(this._x); }
+    public set x(value: number) { this._x = decimal(value); }
+    public get y(): number { return decimalToNumber(this._y); }
+    public set y(value: number) { this._y = decimal(value); }
+    public get m(): number { return decimalToNumber(this._m); }
+    public set m(value: number) { this._m = decimal(value); }
+    public get answer(): number { return decimalToNumber(this._answer); }
+    public set answer(value: number) { this._answer = decimal(value); }
+
+    public getRegisterDecimal(name: "a" | "b" | "c" | "d" | "x" | "y" | "m" | "answer"): Decimal {
+        switch (name) {
+            case "a": return this._a;
+            case "b": return this._b;
+            case "c": return this._c;
+            case "d": return this._d;
+            case "x": return this._x;
+            case "y": return this._y;
+            case "m": return this._m;
+            case "answer": return this._answer;
+            default:
+                throw Error.EMULATOR_ERROR;
+        }
+    }
+
+    public setRegisterDecimal(name: "a" | "b" | "c" | "d" | "x" | "y" | "m" | "answer", value: Decimal): void {
+        switch (name) {
+            case "a": this._a = value; return;
+            case "b": this._b = value; return;
+            case "c": this._c = value; return;
+            case "d": this._d = value; return;
+            case "x": this._x = value; return;
+            case "y": this._y = value; return;
+            case "m": this._m = value; return;
+            case "answer": this._answer = value; return;
+            default:
+                throw Error.EMULATOR_ERROR;
+        }
+    }
+
+    public toJSON() {
+        return {
+            calculatorMode: this.calculatorMode,
+            angleMode: this.angleMode,
+            numberDisplayMode: this.numberDisplayMode,
+            frequencyMode: this.frequencyMode,
+            numberBase: this.numberBase,
+            regressionMode: this.regressionMode,
+            a: this.a,
+            b: this.b,
+            c: this.c,
+            d: this.d,
+            x: this.x,
+            y: this.y,
+            m: this.m,
+            answer: this.answer,
+            shouldDisplay: this.shouldDisplay,
+            xData: this.xData,
+            yData: this.yData,
+        };
     }
 }
 
 type InstructionTerminator = Token.EXECUTION_DELIMITER | Token.DISPLAY | "EOF";
 
 type BoundInstruction =
-    | { kind: "literal"; value: number }
+    | { kind: "literal"; value: Decimal }
     | { kind: "variable"; token: Token }
     | { kind: "unary"; operation: Token; operand: BoundInstruction }
     | { kind: "binary"; operation: Token; left: BoundInstruction; right: BoundInstruction }
@@ -167,7 +240,7 @@ export class VM {
         if (instruction.length === 0) { throw Error.EMULATOR_ERROR; }
         const boundInstruction = this.bindInstruction(instruction);
         const result = this.evaluateInstruction(boundInstruction);
-        this.state.answer = result;
+        this.state.setRegisterDecimal("answer", result);
 
         if (terminator === Token.EXECUTION_DELIMITER) {
             this.state.shouldDisplay = false;
@@ -185,7 +258,7 @@ export class VM {
         return boundInstruction;
     }
 
-    private evaluateInstruction(instruction: BoundInstruction): number {
+    private evaluateInstruction(instruction: BoundInstruction): Decimal {
         switch (instruction.kind) {
             case "literal":
                 return instruction.value;
@@ -284,7 +357,7 @@ export class VM {
         }
 
         if (token === Token.ANSWER) {
-            return { kind: "literal", value: this.state.answer };
+            return { kind: "literal", value: this.state.getRegisterDecimal("answer") };
         }
 
         if (this.isConstantToken(token)) {
@@ -304,7 +377,7 @@ export class VM {
         throw Error.SYNTAX_ERROR;
     }
 
-    private evaluateUnary(operation: Token, operand: number): number {
+    private evaluateUnary(operation: Token, operand: Decimal): Decimal {
         switch (operation) {
             case Token.NEGATIVE: return CommonOperators.negative(operand);
             case Token.SQUARE: return CommonOperators.square(operand);
@@ -317,15 +390,15 @@ export class VM {
             case Token.SINE: return CommonOperators.sin(operand, this.state.angleMode);
             case Token.COSINE: return CommonOperators.cos(operand, this.state.angleMode);
             case Token.TANGENT: return CommonOperators.tan(operand, this.state.angleMode);
-            case Token.HYPERBOLIC_SINE: return CommonOperators.sinh(operand, this.state.angleMode);
-            case Token.HYPERBOLIC_COSINE: return CommonOperators.cosh(operand, this.state.angleMode);
-            case Token.HYPERBOLIC_TANGENT: return CommonOperators.tanh(operand, this.state.angleMode);
+            case Token.HYPERBOLIC_SINE: return CommonOperators.sinh(operand);
+            case Token.HYPERBOLIC_COSINE: return CommonOperators.cosh(operand);
+            case Token.HYPERBOLIC_TANGENT: return CommonOperators.tanh(operand);
             case Token.INVERSE_SINE: return CommonOperators.asin(operand, this.state.angleMode);
             case Token.INVERSE_COSINE: return CommonOperators.acos(operand, this.state.angleMode);
             case Token.INVERSE_TANGENT: return CommonOperators.atan(operand, this.state.angleMode);
-            case Token.INVERSE_HYPERBOLIC_SINE: return CommonOperators.asinh(operand, this.state.angleMode);
-            case Token.INVERSE_HYPERBOLIC_COSINE: return CommonOperators.acosh(operand, this.state.angleMode);
-            case Token.INVERSE_HYPERBOLIC_TANGENT: return CommonOperators.atanh(operand, this.state.angleMode);
+            case Token.INVERSE_HYPERBOLIC_SINE: return CommonOperators.asinh(operand);
+            case Token.INVERSE_HYPERBOLIC_COSINE: return CommonOperators.acosh(operand);
+            case Token.INVERSE_HYPERBOLIC_TANGENT: return CommonOperators.atanh(operand);
             case Token.LOGARITHM: return CommonOperators.log(operand);
             case Token.NATURAL_LOGARITHM: return CommonOperators.ln(operand);
             case Token.FROM_DEGREE: return CommonOperators.fromDegree(operand, this.state.angleMode);
@@ -338,32 +411,35 @@ export class VM {
         }
     }
 
-    private evaluateBinary(operation: Token, left: number, right: number): number {
+    private evaluateBinary(operation: Token, left: Decimal, right: Decimal): Decimal {
         switch (operation) {
             case Token.PLUS: return CommonOperators.add(left, right);
             case Token.MINUS: return CommonOperators.subtract(left, right);
             case Token.MULTIPLY: return CommonOperators.multiply(left, right);
-            case Token.DIVIDE: return CommonOperators.divide(left, right);
+            case Token.DIVIDE: {
+                if (right.isZero()) { return left.div(right); }
+                return CommonOperators.divide(left, right);
+            }
             case Token.POWER: return CommonOperators.power(left, right);
             case Token.SCIENTIFIC_EXPONENTIATION: return CommonOperators.sciExp(left, right);
             case Token.PERMUTATION: return CommonOperators.permutation(left, right);
             case Token.COMBINATION: return CommonOperators.combination(left, right);
-            case Token.EQUAL: return left === right ? 1 : 0;
-            case Token.NOT_EQUAL: return left !== right ? 1 : 0;
-            case Token.GREATER_THAN: return left > right ? 1 : 0;
-            case Token.LESS_THAN: return left < right ? 1 : 0;
-            case Token.GREATER_THAN_OR_EQUAL: return left >= right ? 1 : 0;
-            case Token.LESS_THAN_OR_EQUAL: return left <= right ? 1 : 0;
-            case Token.AND: return left && right ? 1 : 0;
-            case Token.OR: return left || right ? 1 : 0;
-            case Token.XOR: return Boolean(left) !== Boolean(right) ? 1 : 0;
-            case Token.XNOR: return Boolean(left) === Boolean(right) ? 1 : 0;
+            case Token.EQUAL: return decimal(left.eq(right) ? 1 : 0);
+            case Token.NOT_EQUAL: return decimal(!left.eq(right) ? 1 : 0);
+            case Token.GREATER_THAN: return decimal(left.gt(right) ? 1 : 0);
+            case Token.LESS_THAN: return decimal(left.lt(right) ? 1 : 0);
+            case Token.GREATER_THAN_OR_EQUAL: return decimal(left.gte(right) ? 1 : 0);
+            case Token.LESS_THAN_OR_EQUAL: return decimal(left.lte(right) ? 1 : 0);
+            case Token.AND: return decimal(!left.isZero() && !right.isZero() ? 1 : 0);
+            case Token.OR: return decimal(!left.isZero() || !right.isZero() ? 1 : 0);
+            case Token.XOR: return decimal((!left.isZero()) !== (!right.isZero()) ? 1 : 0);
+            case Token.XNOR: return decimal((!left.isZero()) === (!right.isZero()) ? 1 : 0);
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
 
-    private evaluateCall(operation: Token, operands: number[]): number {
+    private evaluateCall(operation: Token, operands: Decimal[]): Decimal {
         switch (operation) {
             case Token.RANDOM:
                 return CommonOperators.random();
@@ -390,16 +466,18 @@ export class VM {
         throw Error.EMULATOR_ERROR;
     }
 
-    private parseNumberLiteral(firstToken: Token): number {
+    private parseNumberLiteral(firstToken: Token): Decimal {
         const components: string[] = [this.tokenToNumberComponent(firstToken)];
         while (!this.isAtEnd()) {
             const token = this.peekToken();
             if (token === undefined || !this.isNumberComponentToken(token)) { break; }
             components.push(this.tokenToNumberComponent(this.consumeToken()!));
         }
-        const value = Number(components.join(""));
-        if (Number.isNaN(value)) { throw Error.SYNTAX_ERROR; }
-        return value;
+        try {
+            return decimal(components.join(""));
+        } catch {
+            throw Error.SYNTAX_ERROR;
+        }
     }
 
     private getBinaryOperator(token: Token | undefined, left: BoundInstruction): { token: Token; precedence: number; rightAssociative: boolean } | undefined {
@@ -552,24 +630,24 @@ export class VM {
         }
     }
 
-    private readVariable(token: Token): number {
+    private readVariable(token: Token): Decimal {
         switch (token) {
-            case Token.VARIABLE_A: return this.state.a;
-            case Token.VARIABLE_B: return this.state.b;
-            case Token.VARIABLE_C: return this.state.c;
-            case Token.VARIABLE_D: return this.state.d;
-            case Token.VARIABLE_X: return this.state.x;
-            case Token.VARIABLE_Y: return this.state.y;
-            case Token.VARIABLE_M: return this.state.m;
+            case Token.VARIABLE_A: return this.state.getRegisterDecimal("a");
+            case Token.VARIABLE_B: return this.state.getRegisterDecimal("b");
+            case Token.VARIABLE_C: return this.state.getRegisterDecimal("c");
+            case Token.VARIABLE_D: return this.state.getRegisterDecimal("d");
+            case Token.VARIABLE_X: return this.state.getRegisterDecimal("x");
+            case Token.VARIABLE_Y: return this.state.getRegisterDecimal("y");
+            case Token.VARIABLE_M: return this.state.getRegisterDecimal("m");
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
 
-    private readConstant(token: Token): number {
+    private readConstant(token: Token): Decimal {
         switch (token) {
-            case Token.PI: return Math.PI;
-            case Token.EULER_NUMBER: return Math.E;
+            case Token.PI: return decimal("3.1415926535897932384626433832795028841971");
+            case Token.EULER_NUMBER: return decimal("2.7182818284590452353602874713526624977572");
             default:
                 throw Error.EMULATOR_ERROR;
         }

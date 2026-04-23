@@ -1,4 +1,4 @@
-import { Token } from "./tokens";
+import { Token } from "@lib/tokens";
 
 export const CONSTANTS: Partial<Record<Token, number>> = {
     // TODO: add a mode for using updated CODATA values instead of faithfully emulating the original ROM

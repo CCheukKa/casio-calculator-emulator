@@ -1,4 +1,4 @@
-import type { CalculatorMode } from "./modes";
+import type { CalculatorMode } from "@lib/modes";
 
 export enum Token {
     // regular
