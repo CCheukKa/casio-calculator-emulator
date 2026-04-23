@@ -18,6 +18,7 @@ class State {
     public y: number;
     public m: number;
     public answer: number;
+    public shouldDisplay: boolean;
     public xData: number[];
     public yData: number[];
 
@@ -36,6 +37,7 @@ class State {
         y,
         m,
         answer,
+        shouldDisplay,
         xData,
         yData,
     }: {
@@ -53,6 +55,7 @@ class State {
         y?: number,
         m?: number,
         answer?: number,
+        shouldDisplay?: boolean,
         xData?: number[],
         yData?: number[],
     }) {
@@ -70,14 +73,13 @@ class State {
         this.y = y ?? 0;
         this.m = m ?? 0;
         this.answer = answer ?? 0;
+        this.shouldDisplay = shouldDisplay ?? false;
         this.xData = xData ?? [];
         this.yData = yData ?? [];
     }
 }
 
-type InstructionResult = {
-    programCounter: number;
-}
+type InstructionTerminator = Token.EXECUTION_DELIMITER | Token.DISPLAY | "EOF";
 
 type BoundInstruction =
     | { kind: "literal"; value: number }
@@ -101,27 +103,42 @@ export class VM {
 
     public execute(tokens: Token[]): void {
         let programCounter = 0;
+        this.state.shouldDisplay = false;
         while (programCounter < tokens.length) {
-            const instructionStart = programCounter;
             const instruction: Token[] = [];
+            let terminator: InstructionTerminator = "EOF";
             while (programCounter < tokens.length) {
                 const token = tokens[programCounter]!;
-                if (token === Token.EXECUTION_DELIMITER) { break; }
+                if (token === Token.DISPLAY || token === Token.EXECUTION_DELIMITER) {
+                    terminator = token;
+                    programCounter++;
+                    break;
+                }
                 instruction.push(token);
                 programCounter++;
             }
-            const result = this.executeInstruction(instruction, instructionStart);
-            programCounter = result.programCounter;
+            if (instruction.length === 0) {
+                if (terminator === Token.DISPLAY || terminator === Token.EXECUTION_DELIMITER) {
+                    throw Error.SYNTAX_ERROR;
+                }
+                continue;
+            }
+            this.executeInstruction(instruction, terminator);
         }
     }
 
-    private executeInstruction(instruction: Token[], startProgramCounter: number): InstructionResult {
-        if (instruction.length === 0) { throw Error.SYNTAX_ERROR; }
+    private executeInstruction(instruction: Token[], terminator: InstructionTerminator): void {
+        if (instruction.length === 0) { throw Error.EMULATOR_ERROR; }
         const boundInstruction = this.bindInstruction(instruction);
-        this.state.answer = this.evaluateInstruction(boundInstruction);
-        return {
-            programCounter: startProgramCounter + instruction.length + 1,
-        };
+        const result = this.evaluateInstruction(boundInstruction);
+        this.state.answer = result;
+
+        if (terminator === Token.EXECUTION_DELIMITER) {
+            this.state.shouldDisplay = false;
+            return;
+        }
+
+        this.state.shouldDisplay = true;
     }
 
     private bindInstruction(instruction: Token[]): BoundInstruction {

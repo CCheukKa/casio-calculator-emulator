@@ -8,7 +8,9 @@ const program = [
     Token.MULTIPLY,
     Token.NUMBER_3,
     Token.EXECUTION_DELIMITER,
+    Token.EXECUTION_DELIMITER,
 ];
 
 const vm = new VM();
 vm.execute(program);
+console.log(vm.state);
