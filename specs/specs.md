@@ -1,3 +1,30 @@
+## Mode 3: Base-N Calculations
+In Base-N mode, you can perform calculations in binary, octal, decimal, or hexadecimal.  
+- Inputting a digit outside the current number base causes an error. For example, if you input 2 in binary mode, you will get a Syntax ERROR.
+- In the BASE Mode, input of fractional (decimal) values and exponential values is not supported. Anything to the right of the decimal point of calculation results is cut off.
+
+### Effective Calculation Range
+- Binary
+  - Positive: 0 ≤ x ≤ 11111111
+  - Negative: 1000000000 ≤ x ≤ 1111111111
+- Octal
+  - Positive: 0 ≤ x ≤3777777777
+  - Negative: 4000000000 ≤ x ≤ 7777777777
+- Decimal
+  - Positive: 0 ≤ x ≤ 2147483647
+  - Negative: -2147483648 ≤ x ≤ 2147483647
+- Hexadecimal
+  - Positive: 0 ≤ x ≤ 7FFFFFFF
+  - Negative: 80000000 ≤ x ≤ FFFFFFFF
+
+A  Math ERROR occurs when a calculation result is outside of the applicable range for the
+current default number base.
+
+### Operations
+- Not: Returns the complement (bitwise inversion) of a value.  
+- Neg: Returns the two's complement of a value.  
+
+
 ## Calculation Priority Sequence
 The calculator performs calculations you input in accordance with the priority sequence shown below.  
 - Basically, calculations are performed from left to right.  

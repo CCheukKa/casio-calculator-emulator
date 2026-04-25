@@ -528,14 +528,14 @@ describe("StatisticsOperators", () => {
 
     test("linear regression", () => {
         // y = 1 + 2x
-        const x = [D(1), D(2), D(3)];
-        const y = [D(3), D(5), D(7)];
+        const x = [D(1), D(2)];
+        const y = [D(3), D(5)];
 
         expect(StatisticsOperators.regressionA(x, y, RegressionMode.LINEAR)).toEqualDecimal(1);
         expect(StatisticsOperators.regressionB(x, y, RegressionMode.LINEAR)).toEqualDecimal(2);
         expect(StatisticsOperators.correlationCoefficient(x, y, RegressionMode.LINEAR)).toEqualDecimal(1);
         expect(StatisticsOperators.estimatedX(x, y, RegressionMode.LINEAR, D(7))).toEqualDecimal(3);
-        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.LINEAR, D(4))).toEqualDecimal(9);
+        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.LINEAR, D(3))).toEqualDecimal(7);
 
         expectThrowsValue(() => StatisticsOperators.regressionA([], [], RegressionMode.LINEAR), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.regressionB([], [], RegressionMode.LINEAR), Error.MATH_ERROR);
@@ -547,103 +547,103 @@ describe("StatisticsOperators", () => {
         expectThrowsValue(() => StatisticsOperators.regressionB([D(1)], [D(2)], RegressionMode.LINEAR), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.correlationCoefficient([D(1)], [D(2)], RegressionMode.LINEAR), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.estimatedX([D(1)], [D(2)], RegressionMode.LINEAR, D(7)), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(2)], RegressionMode.LINEAR, D(4)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(2)], RegressionMode.LINEAR, D(3)), Error.MATH_ERROR);
     });
 
     test("logarithmic regression", () => {
         // y = 1 + 2ln(x)
-        const x = [D(1), D(2), D(3)];
-        const y = [D(1), D(1).add(D(2).ln().times(2)), D(1).add(D(3).ln().times(2))];
+        const x = [D(1), D(2)];
+        const y = [D(1), D(1).add(D(2).ln().times(2))];
 
         expect(StatisticsOperators.regressionA(x, y, RegressionMode.LOGARITHMIC)).toEqualDecimal(1);
         expect(StatisticsOperators.regressionB(x, y, RegressionMode.LOGARITHMIC)).toEqualDecimal(2);
         expect(StatisticsOperators.correlationCoefficient(x, y, RegressionMode.LOGARITHMIC)).toEqualDecimal(1);
-        expect(StatisticsOperators.estimatedX(x, y, RegressionMode.LOGARITHMIC, D(8))).toEqualDecimal(Math.exp(3.5));
-        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.LOGARITHMIC, D(4))).toEqualDecimal(1 + 2 * Math.log(4));
+        expect(StatisticsOperators.estimatedX(x, y, RegressionMode.LOGARITHMIC, D(D(1).add(D(3).ln().times(2))))).toEqualDecimal(3);
+        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.LOGARITHMIC, D(3))).toEqualDecimal(D(1).add(D(3).ln().times(2)));
 
         expectThrowsValue(() => StatisticsOperators.regressionA([], [], RegressionMode.LOGARITHMIC), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.regressionB([], [], RegressionMode.LOGARITHMIC), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.correlationCoefficient([], [], RegressionMode.LOGARITHMIC), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedX([], [], RegressionMode.LOGARITHMIC, D(8)), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedY([], [], RegressionMode.LOGARITHMIC, D(4)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedX([], [], RegressionMode.LOGARITHMIC, D(D(1).add(D(3).ln().times(2)))), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedY([], [], RegressionMode.LOGARITHMIC, D(3)), Error.MATH_ERROR);
 
         expectThrowsValue(() => StatisticsOperators.regressionA([D(1)], [D(0)], RegressionMode.LOGARITHMIC), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.regressionB([D(1)], [D(0)], RegressionMode.LOGARITHMIC), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.correlationCoefficient([D(1)], [D(0)], RegressionMode.LOGARITHMIC), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedX([D(1)], [D(0)], RegressionMode.LOGARITHMIC, D(8)), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(0)], RegressionMode.LOGARITHMIC, D(4)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedX([D(1)], [D(0)], RegressionMode.LOGARITHMIC, D(D(1).add(D(3).ln().times(2)))), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(0)], RegressionMode.LOGARITHMIC, D(3)), Error.MATH_ERROR);
     });
 
     test("exponential regression", () => {
         // y = 2 * e^(3x)
-        const x = [D(1), D(2), D(3)];
-        const y = [D(2).times(D(3).exp()), D(2).times(D(6).exp()), D(2).times(D(9).exp())];
+        const x = [D(1), D(2)];
+        const y = [D(2).times(D(3).exp()), D(2).times(D(6).exp())];
 
         expect(StatisticsOperators.regressionA(x, y, RegressionMode.EXPONENTIAL)).toEqualDecimal(2);
         expect(StatisticsOperators.regressionB(x, y, RegressionMode.EXPONENTIAL)).toEqualDecimal(3);
         expect(StatisticsOperators.correlationCoefficient(x, y, RegressionMode.EXPONENTIAL)).toEqualDecimal(1);
-        expect(StatisticsOperators.estimatedX(x, y, RegressionMode.EXPONENTIAL, D(2).times(D(12).exp()))).toEqualDecimal(4);
-        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.EXPONENTIAL, D(4))).toEqualDecimal(2 * Math.exp(12));
+        expect(StatisticsOperators.estimatedX(x, y, RegressionMode.EXPONENTIAL, D(2).times(D(9).exp()))).toEqualDecimal(3);
+        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.EXPONENTIAL, D(3))).toEqualDecimal(D(2).times(D(9).exp()));
 
         expectThrowsValue(() => StatisticsOperators.regressionA([], [], RegressionMode.EXPONENTIAL), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.regressionB([], [], RegressionMode.EXPONENTIAL), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.correlationCoefficient([], [], RegressionMode.EXPONENTIAL), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedX([], [], RegressionMode.EXPONENTIAL, D(2).times(D(12).exp())), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedY([], [], RegressionMode.EXPONENTIAL, D(4)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedX([], [], RegressionMode.EXPONENTIAL, D(2).times(D(9).exp())), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedY([], [], RegressionMode.EXPONENTIAL, D(3)), Error.MATH_ERROR);
 
         expectThrowsValue(() => StatisticsOperators.regressionA([D(1)], [D(6)], RegressionMode.EXPONENTIAL), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.regressionB([D(1)], [D(6)], RegressionMode.EXPONENTIAL), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.correlationCoefficient([D(1)], [D(6)], RegressionMode.EXPONENTIAL), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedX([D(1)], [D(6)], RegressionMode.EXPONENTIAL, D(2).times(D(12).exp())), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(6)], RegressionMode.EXPONENTIAL, D(4)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedX([D(1)], [D(6)], RegressionMode.EXPONENTIAL, D(2).times(D(9).exp())), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(6)], RegressionMode.EXPONENTIAL, D(3)), Error.MATH_ERROR);
     });
 
     test("power regression", () => {
         // y = 2 * x^3
-        const x = [D(1), D(2), D(3)];
-        const y = [D(2), D(16), D(54)];
+        const x = [D(1), D(2)];
+        const y = [D(2), D(16)];
 
         expect(StatisticsOperators.regressionA(x, y, RegressionMode.POWER)).toEqualDecimal(2);
         expect(StatisticsOperators.regressionB(x, y, RegressionMode.POWER)).toEqualDecimal(3);
         expect(StatisticsOperators.correlationCoefficient(x, y, RegressionMode.POWER)).toEqualDecimal(1);
-        expect(StatisticsOperators.estimatedX(x, y, RegressionMode.POWER, D(128))).toEqualDecimal(4);
-        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.POWER, D(4))).toEqualDecimal(128);
+        expect(StatisticsOperators.estimatedX(x, y, RegressionMode.POWER, D(54))).toEqualDecimal(3);
+        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.POWER, D(3))).toEqualDecimal(54);
 
         expectThrowsValue(() => StatisticsOperators.regressionA([], [], RegressionMode.POWER), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.regressionB([], [], RegressionMode.POWER), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.correlationCoefficient([], [], RegressionMode.POWER), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedX([], [], RegressionMode.POWER, D(128)), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedY([], [], RegressionMode.POWER, D(4)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedX([], [], RegressionMode.POWER, D(54)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedY([], [], RegressionMode.POWER, D(3)), Error.MATH_ERROR);
 
         expectThrowsValue(() => StatisticsOperators.regressionA([D(1)], [D(2)], RegressionMode.POWER), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.regressionB([D(1)], [D(2)], RegressionMode.POWER), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.correlationCoefficient([D(1)], [D(2)], RegressionMode.POWER), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedX([D(1)], [D(2)], RegressionMode.POWER, D(128)), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(2)], RegressionMode.POWER, D(4)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedX([D(1)], [D(2)], RegressionMode.POWER, D(54)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(2)], RegressionMode.POWER, D(3)), Error.MATH_ERROR);
     });
 
     test("inverse regression", () => {
         // y = 1 + 2/x
-        const x = [D(1), D(2), D(3)];
-        const y = [D(3), D(2), D(5 / 3)];
+        const x = [D(1), D(2)];
+        const y = [D(3), D(2)];
 
         expect(StatisticsOperators.regressionA(x, y, RegressionMode.INVERSE)).toEqualDecimal(1);
         expect(StatisticsOperators.regressionB(x, y, RegressionMode.INVERSE)).toEqualDecimal(2);
         expect(StatisticsOperators.correlationCoefficient(x, y, RegressionMode.INVERSE)).toEqualDecimal(1);
-        expect(StatisticsOperators.estimatedX(x, y, RegressionMode.INVERSE, D(1.5))).toEqualDecimal(4);
-        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.INVERSE, D(4))).toEqualDecimal(1.5);
+        expect(StatisticsOperators.estimatedX(x, y, RegressionMode.INVERSE, D(5 / 3))).toEqualDecimal(3);
+        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.INVERSE, D(3))).toEqualDecimal(5 / 3);
 
         expectThrowsValue(() => StatisticsOperators.regressionA([], [], RegressionMode.INVERSE), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.regressionB([], [], RegressionMode.INVERSE), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.correlationCoefficient([], [], RegressionMode.INVERSE), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedX([], [], RegressionMode.INVERSE, D(1.5)), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedY([], [], RegressionMode.INVERSE, D(4)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedX([], [], RegressionMode.INVERSE, D(5 / 3)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedY([], [], RegressionMode.INVERSE, D(3)), Error.MATH_ERROR);
 
         expectThrowsValue(() => StatisticsOperators.regressionA([D(1)], [D(2)], RegressionMode.INVERSE), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.regressionB([D(1)], [D(2)], RegressionMode.INVERSE), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.correlationCoefficient([D(1)], [D(2)], RegressionMode.INVERSE), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedX([D(1)], [D(2)], RegressionMode.INVERSE, D(1.5)), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(2)], RegressionMode.INVERSE, D(4)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedX([D(1)], [D(2)], RegressionMode.INVERSE, D(5 / 3)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(2)], RegressionMode.INVERSE, D(3)), Error.MATH_ERROR);
     });
 
     test("quadratic regression", () => {
@@ -682,25 +682,25 @@ describe("StatisticsOperators", () => {
 
     test("ab exponential regression", () => {
         // y = 2 * 3^x
-        const x = [D(1), D(2), D(3)];
-        const y = [D(6), D(18), D(54)];
+        const x = [D(1), D(2)];
+        const y = [D(6), D(18)];
 
         expect(StatisticsOperators.regressionA(x, y, RegressionMode.AB_EXPONENTIAL)).toEqualDecimal(2);
         expect(StatisticsOperators.regressionB(x, y, RegressionMode.AB_EXPONENTIAL)).toEqualDecimal(3);
         expect(StatisticsOperators.correlationCoefficient(x, y, RegressionMode.AB_EXPONENTIAL)).toEqualDecimal(1);
-        expect(StatisticsOperators.estimatedX(x, y, RegressionMode.AB_EXPONENTIAL, D(162))).toEqualDecimal(4);
-        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.AB_EXPONENTIAL, D(4))).toEqualDecimal(162);
+        expect(StatisticsOperators.estimatedX(x, y, RegressionMode.AB_EXPONENTIAL, D(54))).toEqualDecimal(3);
+        expect(StatisticsOperators.estimatedY(x, y, RegressionMode.AB_EXPONENTIAL, D(3))).toEqualDecimal(54);
 
         expectThrowsValue(() => StatisticsOperators.regressionA([], [], RegressionMode.AB_EXPONENTIAL), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.regressionB([], [], RegressionMode.AB_EXPONENTIAL), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.correlationCoefficient([], [], RegressionMode.AB_EXPONENTIAL), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedX([], [], RegressionMode.AB_EXPONENTIAL, D(162)), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedY([], [], RegressionMode.AB_EXPONENTIAL, D(4)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedX([], [], RegressionMode.AB_EXPONENTIAL, D(54)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedY([], [], RegressionMode.AB_EXPONENTIAL, D(3)), Error.MATH_ERROR);
 
         expectThrowsValue(() => StatisticsOperators.regressionA([D(1)], [D(6)], RegressionMode.AB_EXPONENTIAL), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.regressionB([D(1)], [D(6)], RegressionMode.AB_EXPONENTIAL), Error.MATH_ERROR);
         expectThrowsValue(() => StatisticsOperators.correlationCoefficient([D(1)], [D(6)], RegressionMode.AB_EXPONENTIAL), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedX([D(1)], [D(6)], RegressionMode.AB_EXPONENTIAL, D(162)), Error.MATH_ERROR);
-        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(6)], RegressionMode.AB_EXPONENTIAL, D(4)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedX([D(1)], [D(6)], RegressionMode.AB_EXPONENTIAL, D(54)), Error.MATH_ERROR);
+        expectThrowsValue(() => StatisticsOperators.estimatedY([D(1)], [D(6)], RegressionMode.AB_EXPONENTIAL, D(3)), Error.MATH_ERROR);
     });
 });

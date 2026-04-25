@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { Error } from "@lib/errors";
 import { Token } from "@lib/tokens";
 import { State, VM } from "@lib/vm";
-import { CalculatorMode } from "@lib/modes";
+import { CalculatorMode, RegressionMode } from "@lib/modes";
 import { expectThrowsValue } from "@test/test";
 import { D, PI } from "@lib/operations";
 import Decimal from "decimal.js";
@@ -14,7 +14,7 @@ const runProgram = (calculatorMode: CalculatorMode, program: Token[]) => {
     return vm;
 };
 
-describe("VM parsing and execution edge cases", () => {
+describe("VM core parser and execution coverage", () => {
     test("empty program does not throw", () => {
         const vm = runProgram(CalculatorMode.COMPUTATION, []);
         expect(vm.state.answer).toEqualDecimal(0);
@@ -62,7 +62,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.PLUS,
             Token.NUMBER_3,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(5);
         expect(vm.state.shouldDisplay).toBe(true);
@@ -77,7 +76,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.ANSWER,
             Token.MULTIPLY,
             Token.NUMBER_4,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(20);
         expect(vm.state.shouldDisplay).toBe(true);
@@ -104,7 +102,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.SINE,
             Token.NUMBER_4,
             Token.NUMBER_5,
-            Token.DISPLAY,
         ]);
 
         const vmB = runProgram(CalculatorMode.COMPUTATION, [
@@ -112,7 +109,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_4,
             Token.NUMBER_5,
             Token.RIGHT_PARENTHESIS,
-            Token.DISPLAY,
         ]);
 
         expect(vmA.state.answer).toEqualDecimal(vmB.state.answer);
@@ -126,7 +122,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.MULTIPLY,
             Token.NUMBER_3,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(7);
         expect(vm.state.shouldDisplay).toBe(true);
@@ -139,7 +134,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.MULTIPLY,
             Token.NUMBER_3,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(7);
     });
@@ -153,7 +147,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.RIGHT_PARENTHESIS,
             Token.MULTIPLY,
             Token.NUMBER_3,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(9);
     });
@@ -165,7 +158,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_4,
             Token.DIVIDE,
             Token.NUMBER_2,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(1);
     });
@@ -176,7 +168,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_3,
             Token.MULTIPLY,
             Token.NUMBER_4,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(-12);
     });
@@ -186,7 +177,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NEGATIVE,
             Token.NUMBER_2,
             Token.SQUARE,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(-4);
     });
@@ -195,12 +185,10 @@ describe("VM parsing and execution edge cases", () => {
         const vmUnary = runProgram(CalculatorMode.COMPUTATION, [
             Token.MINUS,
             Token.NUMBER_2,
-            Token.DISPLAY,
         ]);
         const vmNegative = runProgram(CalculatorMode.COMPUTATION, [
             Token.NEGATIVE,
             Token.NUMBER_2,
-            Token.DISPLAY,
         ]);
         expect(vmUnary.state.answer).toEqualDecimal(vmNegative.state.answer);
     });
@@ -223,7 +211,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.DECIMAL_POINT,
             Token.NUMBER_2,
             Token.NUMBER_5,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(1.25);
     });
@@ -232,7 +219,6 @@ describe("VM parsing and execution edge cases", () => {
         const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_1,
             Token.DECIMAL_POINT,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(1);
     });
@@ -242,7 +228,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_1,
             Token.SCIENTIFIC_EXPONENTIATION,
             Token.NUMBER_2,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(100);
     });
@@ -264,7 +249,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.SCIENTIFIC_EXPONENTIATION,
             Token.PLUS,
             Token.NUMBER_2,
-            Token.DISPLAY,
         ]);
         expect(vmPos.state.answer).toEqualDecimal(-100);
 
@@ -274,7 +258,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.SCIENTIFIC_EXPONENTIATION,
             Token.MINUS,
             Token.NUMBER_2,
-            Token.DISPLAY,
         ]);
         expect(vmNeg.state.answer).toEqualDecimal(-0.01);
     });
@@ -283,7 +266,6 @@ describe("VM parsing and execution edge cases", () => {
         const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.SCIENTIFIC_EXPONENTIATION,
             Token.NUMBER_2,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(100);
     });
@@ -386,7 +368,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.MULTIPLY,
             Token.VARIABLE_A,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(8);
     });
@@ -400,7 +381,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.MULTIPLY,
             Token.ANSWER,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(18);
     });
@@ -410,9 +390,8 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.MULTIPLY,
             Token.PI,
-            Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toEqualDecimal(2 * PI);
+        expect(vm.state.answer).toEqualDecimal(D(2).times(PI));
     });
 
     test("implicit multiplication with parenthetical function", () => {
@@ -423,7 +402,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_3,
             Token.NUMBER_0,
             Token.RIGHT_PARENTHESIS,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(1);
     });
@@ -493,9 +471,15 @@ describe("VM parsing and execution edge cases", () => {
             Token.PI,
             Token.MULTIPLY,
             Token.PI,
-            Token.DISPLAY,
         ]);
-        expect(vmb.state.answer).toEqualDecimal(10 * Math.cos(PI / 180 * 30) * 45 * Math.sin(PI / 180 * 30) * PI * PI);
+        expect(vmb.state.answer).toEqualDecimal(
+            D(10)
+                .times(D(Math.cos(PI.div(180).times(30).toNumber())))
+                .times(45)
+                .times(D(Math.sin(PI.div(180).times(30).toNumber())))
+                .times(PI)
+                .times(PI),
+        );
     });
 
     test("improper chaining of implicit multiplication throws syntax error", () => {
@@ -521,7 +505,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.COMMA,
             Token.NUMBER_8,
             Token.RIGHT_PARENTHESIS,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(3);
     });
@@ -542,7 +525,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_3,
             Token.GREATER_THAN,
             Token.NUMBER_2,
-            Token.DISPLAY,
         ]);
         expect(vmRel.state.answer).toEqualDecimal(1);
 
@@ -550,7 +532,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_1,
             Token.AND,
             Token.NUMBER_0,
-            Token.DISPLAY,
         ]);
         expect(vmAnd.state.answer).toEqualDecimal(0);
     });
@@ -578,7 +559,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.ANSWER,
             Token.PLUS,
             Token.NUMBER_5,
-            Token.DISPLAY,
         ]);
 
         expect(vm.state.answer).toEqualDecimal(12);
@@ -596,7 +576,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.ANSWER,
             Token.MULTIPLY,
             Token.ANSWER,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(5 * 6 * 6);
         expect(vm.state.shouldDisplay).toBe(true);
@@ -607,7 +586,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.SQUARE_ROOT,
             Token.NUMBER_9,
             Token.RIGHT_PARENTHESIS,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(3);
     });
@@ -631,7 +609,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_0,
             Token.NUMBER_0,
             Token.RIGHT_PARENTHESIS,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(2);
     });
@@ -655,7 +632,6 @@ describe("VM parsing and execution edge cases", () => {
         const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_5,
             Token.FACTORIAL,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(120);
     });
@@ -681,7 +657,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.MULTIPLY,
             Token.NUMBER_3,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(7);
     });
@@ -701,7 +676,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_8,
             Token.DIVIDE,
             Token.NUMBER_2,
-            Token.DISPLAY,
         ]);
         expect(vm.state.answer).toEqualDecimal(4);
         expect(vm.state.shouldDisplay).toBe(true);
@@ -809,5 +783,253 @@ describe("Complex mode operations", () => {
             Token.RECTANGULAR_COMPLEX,
         ]);
         expect(vm.state.answer).toEqualDecimal(3);
+    });
+});
+
+describe("Precedence conformance matrix", () => {
+    test("nCr currently associates with same tier as multiply/divide", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
+            Token.NUMBER_1,
+            Token.NUMBER_0,
+            Token.MULTIPLY,
+            Token.NUMBER_5,
+            Token.COMBINATION,
+            Token.NUMBER_2,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(100);
+    });
+
+    test("nPr currently associates with same tier as multiply/divide", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
+            Token.NUMBER_2,
+            Token.MULTIPLY,
+            Token.NUMBER_5,
+            Token.PERMUTATION,
+            Token.NUMBER_2,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(40);
+    });
+
+    test("angle precedence is above addition", () => {
+        const vm = runProgram(CalculatorMode.COMPLEX_NUMBER, [
+            Token.NUMBER_2,
+            Token.PLUS,
+            Token.NUMBER_3,
+            Token.ANGLE,
+            Token.NUMBER_6,
+            Token.NUMBER_0,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(3.5);
+    });
+
+    test("relational operators are lower precedence than arithmetic", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
+            Token.NUMBER_1,
+            Token.PLUS,
+            Token.NUMBER_2,
+            Token.GREATER_THAN,
+            Token.NUMBER_2,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(1);
+    });
+
+    test("AND has higher precedence than OR", () => {
+        const vm = runProgram(CalculatorMode.BASE, [
+            Token.NUMBER_0,
+            Token.OR,
+            Token.NUMBER_1,
+            Token.AND,
+            Token.NUMBER_0,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(0);
+    });
+
+    test("OR/XOR/XNOR are left-associative within same precedence tier", () => {
+        const vm = runProgram(CalculatorMode.BASE, [
+            Token.NUMBER_1,
+            Token.XOR,
+            Token.NUMBER_1,
+            Token.XNOR,
+            Token.NUMBER_0,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(-1);
+    });
+
+    test("power outranks multiply/divide", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
+            Token.NUMBER_2,
+            Token.PLUS,
+            Token.NUMBER_3,
+            Token.POWER,
+            Token.NUMBER_2,
+            Token.RIGHT_PARENTHESIS,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(11);
+    });
+
+    test("x-root outranks multiply/divide", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
+            Token.NUMBER_2,
+            Token.PLUS,
+            Token.NUMBER_2,
+            Token.X_ROOT,
+            Token.NUMBER_9,
+            Token.RIGHT_PARENTHESIS,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(5);
+    });
+
+    test("fraction tier is below power/root", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
+            Token.NUMBER_2,
+            Token.FRACTION,
+            Token.NUMBER_3,
+            Token.POWER,
+            Token.NUMBER_2,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(D(2).div(9));
+    });
+
+    test("nPr/nCr outrank multiply/divide", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
+            Token.NUMBER_1,
+            Token.NUMBER_0,
+            Token.MULTIPLY,
+            Token.NUMBER_5,
+            Token.COMBINATION,
+            Token.NUMBER_2,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(100);
+    });
+});
+
+describe("Additional parser and runtime edge cases", () => {
+    test("scientific notation sign must be followed by exponent digit", () => {
+        expectThrowsValue(
+            () => runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_1,
+                Token.SCIENTIFIC_EXPONENTIATION,
+                Token.PLUS,
+            ]),
+            Error.SYNTAX_ERROR,
+        );
+    });
+
+    test("postfix operators chain left-to-right", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
+            Token.NUMBER_3,
+            Token.SQUARE,
+            Token.INVERSE,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(D(1).div(9));
+    });
+
+    test("Not function composes with arithmetic", () => {
+        const vm = runProgram(CalculatorMode.BASE, [
+            Token.NOT,
+            Token.NUMBER_0,
+            Token.RIGHT_PARENTHESIS,
+            Token.PLUS,
+            Token.NUMBER_1,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(0);
+    });
+
+    test("Neg function works on parenthesized expression", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
+            Token.NEGATE,
+            Token.NUMBER_2,
+            Token.PLUS,
+            Token.NUMBER_3,
+            Token.RIGHT_PARENTHESIS,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(-5);
+    });
+
+    test("base-prefix tokens parse as unary prefixes", () => {
+        const vmBin = runProgram(CalculatorMode.BASE, [
+            Token.BINARY_NUMBER,
+            Token.NUMBER_1,
+            Token.NUMBER_0,
+            Token.NUMBER_1,
+        ]);
+        expect(vmBin.state.answer).toEqualDecimal(5);
+
+        const vmOct = runProgram(CalculatorMode.BASE, [
+            Token.OCTAL_NUMBER,
+            Token.NUMBER_1,
+            Token.NUMBER_7,
+        ]);
+        expect(vmOct.state.answer).toEqualDecimal(15);
+
+        const vmDec = runProgram(CalculatorMode.BASE, [
+            Token.DECIMAL_NUMBER,
+            Token.NUMBER_1,
+            Token.NUMBER_2,
+        ]);
+        expect(vmDec.state.answer).toEqualDecimal(12);
+
+        const vmHex = runProgram(CalculatorMode.BASE, [
+            Token.HEXADECIMAL_NUMBER,
+            Token.HEXADECIMAL_A,
+            Token.NUMBER_1,
+        ]);
+        expect(vmHex.state.answer).toEqualDecimal(161);
+    });
+
+    test("Y-estimated value works", () => {
+        const vm = new VM(new State({
+            calculatorMode: CalculatorMode.PAIRED_VARIABLE_STATISTICS,
+            regressionMode: RegressionMode.LINEAR,
+            xData: [D(1), D(2)],
+            yData: [D(3), D(5)],
+        }));
+
+        vm.execute([
+            Token.NUMBER_3,
+            Token.Y_ESTIMATED_VALUE,
+        ]);
+
+        expect(vm.state.answer).toEqualDecimal(7);
+    });
+
+    test("Y-estimated value binds to preceding number", () => {
+        const vm = new VM(new State({
+            calculatorMode: CalculatorMode.PAIRED_VARIABLE_STATISTICS,
+            regressionMode: RegressionMode.LINEAR,
+            xData: [D(1), D(2)],
+            yData: [D(3), D(5)],
+        }));
+
+        vm.execute([
+            Token.MINUS,
+            Token.NUMBER_3,
+            Token.Y_ESTIMATED_VALUE,
+        ]);
+
+        expect(vm.state.answer).toEqualDecimal(-5);
+    });
+
+    test("X-estimated values return both quadratic roots", () => {
+        const vm = new VM(new State({
+            calculatorMode: CalculatorMode.PAIRED_VARIABLE_STATISTICS,
+            regressionMode: RegressionMode.QUADRATIC,
+            xData: [D(1), D(2), D(3)],
+            yData: [D(6), D(17), D(34)],
+        }));
+
+        vm.execute([
+            Token.NUMBER_2,
+            Token.X1_ESTIMATED_VALUE,
+        ]);
+
+        expect(vm.state.answer).toEqualDecimal(1 / 3);
+
+        vm.execute([
+            Token.NUMBER_2,
+            Token.X2_ESTIMATED_VALUE,
+        ]);
+
+        expect(vm.state.answer).toEqualDecimal(-1);
     });
 });

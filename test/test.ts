@@ -38,7 +38,7 @@ expect.extend({
             ;
         const isDecimalValue = (val: unknown): val is Decimal.Value => (
             Decimal.isDecimal(val) || val instanceof Decimal
-            || typeof val === "number" || typeof val === "string" || typeof expected === "bigint"
+            || typeof val === "number" || typeof val === "string" || typeof val === "bigint"
         );
         if (received === null || (!isComplex(received) && !isDecimalValue(received))) {
             return {
@@ -68,11 +68,20 @@ expect.extend({
 export const expectThrowsValue = (fn: () => unknown, expected: Error) => {
     let result;
     try {
-        result = fn() as Decimal | Complex;
+        result = fn();
     } catch (error) {
         expect(error).toBe(expected);
         return;
     }
-    const resultFormatted = Decimal.isDecimal(result) ? result.toPrecision(TARGET_PRECISION) : formatComplex(result);
+
+    const isComplex = (val: unknown): val is Complex =>
+        typeof val === "object" && val !== null && "re" in val && "im" in val
+        && Decimal.isDecimal((val as Complex).re) && Decimal.isDecimal((val as Complex).im);
+
+    const resultFormatted = Decimal.isDecimal(result)
+        ? result.toPrecision(TARGET_PRECISION)
+        : isComplex(result)
+            ? formatComplex(result)
+            : String(result);
     throw new globalThis.Error(`Expected function to throw, but it returned ${resultFormatted}`);
 };

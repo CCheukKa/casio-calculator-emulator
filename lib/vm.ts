@@ -235,6 +235,9 @@ export class VM {
         while (true) {
             while (!this.isAtEnd() && this.isPostfixOperator(this.peekToken())) {
                 const operation = this.consumeToken()!;
+                if ((operation === Token.POLAR_COMPLEX || operation === Token.RECTANGULAR_COMPLEX) && !this.isAtEnd()) {
+                    throw Error.SYNTAX_ERROR;
+                }
                 left = { kind: "unary", operation, operand: left };
             }
 
@@ -306,6 +309,12 @@ export class VM {
             return { kind: "literal", value: this.parseNumberLiteral(token) };
         }
 
+        if (token === Token.IMAGINARY_UNIT) {
+            // Current VM execution model is scalar-only; treat i as zero for compatibility
+            // with existing conversion token streams that extract real components.
+            return { kind: "literal", value: D(0) };
+        }
+
         if (token === Token.ANSWER) {
             return { kind: "literal", value: this.state.answer };
         }
@@ -330,6 +339,14 @@ export class VM {
     private evaluateUnary(operation: Token, operand: Decimal): Decimal {
         switch (operation) {
             case Token.NEGATIVE: return CommonOperators.negative(operand);
+            case Token.NEGATE: return CommonOperators.negative(operand);
+            case Token.DECIMAL_NUMBER:
+            case Token.HEXADECIMAL_NUMBER:
+            case Token.BINARY_NUMBER:
+            case Token.OCTAL_NUMBER:
+                // Number-base prefix symbols (d/h/b/o) are lexical prefixes.
+                // Current VM evaluator treats already-parsed numeric operand as decimal.
+                return operand;
             case Token.SQUARE: return CommonOperators.square(operand);
             case Token.CUBE: return CommonOperators.cube(operand);
             case Token.INVERSE: return CommonOperators.inverse(operand);
@@ -351,11 +368,36 @@ export class VM {
             case Token.INVERSE_HYPERBOLIC_TANGENT: return CommonOperators.atanh(operand);
             case Token.LOGARITHM: return CommonOperators.log(operand);
             case Token.NATURAL_LOGARITHM: return CommonOperators.ln(operand);
+            case Token.TEN_POWER: return CommonOperators.power(D(10), operand);
+            case Token.E_POWER: return CommonOperators.exp(operand);
             case Token.FROM_DEGREE: return CommonOperators.fromDegree(operand, this.state.angleMode);
             case Token.FROM_RADIAN: return CommonOperators.fromRadian(operand, this.state.angleMode);
             case Token.FROM_GRADIAN: return CommonOperators.fromGradian(operand, this.state.angleMode);
             case Token.ABSOLUTE_VALUE: return CommonOperators.abs(operand);
+            case Token.ARGUMENT:
+                if (operand.gt(0)) { return D(0); }
+                if (operand.lt(0)) {
+                    switch (this.state.angleMode) {
+                        case AngleMode.DEGREE: return D(180);
+                        case AngleMode.RADIAN: return D(Math.PI);
+                        case AngleMode.GRADIAN: return D(200);
+                        default: throw Error.EMULATOR_ERROR;
+                    }
+                }
+                throw Error.MATH_ERROR;
+            case Token.CONJUGATE: return operand;
+            case Token.NOT: return D(operand.isZero() ? 1 : 0);
+            case Token.X_ESTIMATED_VALUE:
+                return this.estimateX(operand, 1);
+            case Token.X1_ESTIMATED_VALUE:
+                return this.estimateX(operand, 1);
+            case Token.X2_ESTIMATED_VALUE:
+                return this.estimateX(operand, 2);
+            case Token.Y_ESTIMATED_VALUE:
+                return this.estimateY(operand);
             case Token.ROUND: return CommonOperators.round(operand, this.state.numberDisplayMode);
+            case Token.POLAR_COMPLEX: return operand;
+            case Token.RECTANGULAR_COMPLEX: return operand;
             default:
                 throw Error.EMULATOR_ERROR;
         }
@@ -366,14 +408,13 @@ export class VM {
             case Token.PLUS: return CommonOperators.add(left, right);
             case Token.MINUS: return CommonOperators.subtract(left, right);
             case Token.MULTIPLY: return CommonOperators.multiply(left, right);
-            case Token.DIVIDE: {
-                if (right.isZero()) { return left.div(right); }
-                return CommonOperators.divide(left, right);
-            }
+            case Token.DIVIDE: return CommonOperators.divide(left, right);
+            case Token.FRACTION: return CommonOperators.divide(left, right);
             case Token.POWER: return CommonOperators.power(left, right);
-            case Token.SCIENTIFIC_EXPONENTIATION: return CommonOperators.sciExp(left, right);
+            case Token.X_ROOT: return CommonOperators.xRoot(left, right);
             case Token.PERMUTATION: return CommonOperators.permutation(left, right);
             case Token.COMBINATION: return CommonOperators.combination(left, right);
+            case Token.ANGLE: return CommonOperators.rectangular(left, right, this.state.angleMode).x;
             case Token.EQUAL: return D(left.eq(right) ? 1 : 0);
             case Token.NOT_EQUAL: return D(!left.eq(right) ? 1 : 0);
             case Token.GREATER_THAN: return D(left.gt(right) ? 1 : 0);
@@ -417,12 +458,56 @@ export class VM {
     }
 
     private parseNumberLiteral(firstToken: Token): Decimal {
-        const components: string[] = [this.tokenToNumberComponent(firstToken)];
+        const components: string[] = [];
+        let hasExponent = false;
+        let hasDecimalPoint = false;
+
+        const appendNumberToken = (token: Token) => {
+            if (token === Token.SCIENTIFIC_EXPONENTIATION) {
+                if (hasExponent) { throw Error.SYNTAX_ERROR; }
+                hasExponent = true;
+                hasDecimalPoint = false;
+                components.push("e");
+
+                const maybeSign = this.peekToken();
+                if (maybeSign === Token.PLUS || maybeSign === Token.MINUS) {
+                    this.consumeToken();
+                    components.push(maybeSign === Token.PLUS ? "+" : "-");
+                }
+
+                const firstExponentDigit = this.peekToken();
+                if (firstExponentDigit === undefined || !this.isDigitToken(firstExponentDigit)) {
+                    throw Error.SYNTAX_ERROR;
+                }
+                return;
+            }
+
+            if (token === Token.DECIMAL_POINT) {
+                if (hasDecimalPoint) { throw Error.SYNTAX_ERROR; }
+                hasDecimalPoint = true;
+                components.push(".");
+                return;
+            }
+
+            components.push(this.tokenToNumberComponent(token));
+        };
+
+        if (firstToken === Token.SCIENTIFIC_EXPONENTIATION) {
+            components.push("1");
+        }
+        appendNumberToken(firstToken);
+
         while (!this.isAtEnd()) {
             const token = this.peekToken();
             if (token === undefined || !this.isNumberComponentToken(token)) { break; }
-            components.push(this.tokenToNumberComponent(this.consumeToken()!));
+
+            // Decimal points are not allowed in the exponent section.
+            if (hasExponent && token === Token.DECIMAL_POINT) { throw Error.SYNTAX_ERROR; }
+
+            this.consumeToken();
+            appendNumberToken(token);
         }
+
         try {
             return D(components.join(""));
         } catch {
@@ -439,12 +524,16 @@ export class VM {
 
         switch (token) {
             case Token.POWER:
-                return { token, precedence: 8, rightAssociative: true };
-            case Token.MULTIPLY:
-            case Token.DIVIDE:
-            case Token.SCIENTIFIC_EXPONENTIATION:
+            case Token.X_ROOT:
+                return { token, precedence: 10, rightAssociative: true };
+            case Token.FRACTION:
+                return { token, precedence: 9, rightAssociative: false };
             case Token.PERMUTATION:
             case Token.COMBINATION:
+            case Token.ANGLE:
+                return { token, precedence: 8, rightAssociative: false };
+            case Token.MULTIPLY:
+            case Token.DIVIDE:
                 return { token, precedence: 7, rightAssociative: false };
             case Token.PLUS:
             case Token.MINUS:
@@ -468,6 +557,7 @@ export class VM {
     }
 
     private isImplicitMultiplicationToken(token: Token, left: BoundInstruction): boolean {
+        if (token === Token.SCIENTIFIC_EXPONENTIATION) { return false; }
         if (!this.isPrimaryStartToken(token)) { return false; }
         return left.kind === "literal" || left.kind === "variable" || left.kind === "unary" || left.kind === "call";
     }
@@ -477,6 +567,7 @@ export class VM {
             || token === Token.ANSWER
             || this.isConstantToken(token)
             || this.isVariableToken(token)
+            || token === Token.IMAGINARY_UNIT
             || token === Token.LEFT_PARENTHESIS
             || this.isFunctionToken(token)
             || token === Token.RANDOM;
@@ -500,6 +591,12 @@ export class VM {
             case Token.CUBE_ROOT:
             case Token.LOGARITHM:
             case Token.NATURAL_LOGARITHM:
+            case Token.TEN_POWER:
+            case Token.E_POWER:
+            case Token.DECIMAL_NUMBER:
+            case Token.HEXADECIMAL_NUMBER:
+            case Token.BINARY_NUMBER:
+            case Token.OCTAL_NUMBER:
             case Token.FROM_DEGREE:
             case Token.FROM_RADIAN:
             case Token.FROM_GRADIAN:
@@ -510,6 +607,14 @@ export class VM {
             case Token.PERMUTATION:
             case Token.COMBINATION:
             case Token.ABSOLUTE_VALUE:
+            case Token.ARGUMENT:
+            case Token.CONJUGATE:
+            case Token.NOT:
+            case Token.NEGATE:
+            case Token.X_ESTIMATED_VALUE:
+            case Token.X1_ESTIMATED_VALUE:
+            case Token.X2_ESTIMATED_VALUE:
+            case Token.Y_ESTIMATED_VALUE:
             case Token.ROUND:
                 return true;
             default:
@@ -529,6 +634,8 @@ export class VM {
             case Token.CUBE:
             case Token.INVERSE:
             case Token.PERCENT:
+            case Token.POLAR_COMPLEX:
+            case Token.RECTANGULAR_COMPLEX:
                 return true;
             default:
                 return false;
@@ -564,6 +671,24 @@ export class VM {
             case Token.VARIABLE_X:
             case Token.VARIABLE_Y:
             case Token.VARIABLE_M:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private isDigitToken(token: Token): boolean {
+        switch (token) {
+            case Token.NUMBER_0:
+            case Token.NUMBER_1:
+            case Token.NUMBER_2:
+            case Token.NUMBER_3:
+            case Token.NUMBER_4:
+            case Token.NUMBER_5:
+            case Token.NUMBER_6:
+            case Token.NUMBER_7:
+            case Token.NUMBER_8:
+            case Token.NUMBER_9:
                 return true;
             default:
                 return false;
@@ -624,6 +749,74 @@ export class VM {
 
     private peekToken(): Token | undefined {
         return this.parseState?.tokens[this.parseState.index];
+    }
+
+    private estimateY(x: Decimal): Decimal {
+        const { a, b, c, regressionMode } = this.state;
+        switch (regressionMode) {
+            case RegressionMode.LINEAR:
+                return a.plus(b.times(x));
+            case RegressionMode.LOGARITHMIC:
+                if (x.lte(0)) { throw Error.MATH_ERROR; }
+                return a.plus(b.times(CommonOperators.ln(x)));
+            case RegressionMode.EXPONENTIAL:
+                return a.times(CommonOperators.exp(b.times(x)));
+            case RegressionMode.POWER:
+                if (x.lte(0)) { throw Error.MATH_ERROR; }
+                return a.times(CommonOperators.power(x, b));
+            case RegressionMode.INVERSE:
+                if (x.isZero()) { throw Error.MATH_ERROR; }
+                return a.plus(b.div(x));
+            case RegressionMode.QUADRATIC:
+                return a.plus(b.times(x)).plus(c.times(CommonOperators.square(x)));
+            case RegressionMode.AB_EXPONENTIAL:
+                return a.times(CommonOperators.power(b, x));
+            default:
+                throw Error.EMULATOR_ERROR;
+        }
+    }
+
+    private estimateX(y: Decimal, rootIndex: 1 | 2): Decimal {
+        const { a, b, c, regressionMode } = this.state;
+        switch (regressionMode) {
+            case RegressionMode.LINEAR:
+                if (b.isZero()) { throw Error.MATH_ERROR; }
+                return y.minus(a).div(b);
+            case RegressionMode.LOGARITHMIC:
+                if (b.isZero()) { throw Error.MATH_ERROR; }
+                return CommonOperators.exp(y.minus(a).div(b));
+            case RegressionMode.EXPONENTIAL:
+                if (a.isZero() || b.isZero()) { throw Error.MATH_ERROR; }
+                return CommonOperators.ln(y.div(a)).div(b);
+            case RegressionMode.POWER:
+                if (a.isZero() || b.isZero()) { throw Error.MATH_ERROR; }
+                return CommonOperators.power(y.div(a), D(1).div(b));
+            case RegressionMode.INVERSE:
+                if (y.eq(a)) { throw Error.MATH_ERROR; }
+                return b.div(y.minus(a));
+            case RegressionMode.QUADRATIC: {
+                const A = c;
+                const B = b;
+                const C = a.minus(y);
+                if (A.isZero()) {
+                    if (B.isZero()) { throw Error.MATH_ERROR; }
+                    return C.negated().div(B);
+                }
+                const discriminant = B.pow(2).minus(D(4).times(A).times(C));
+                if (discriminant.lt(0)) { throw Error.MATH_ERROR; }
+                const sqrtDiscriminant = CommonOperators.sqrt(discriminant);
+                const denominator = D(2).times(A);
+                if (rootIndex === 1) {
+                    return B.negated().minus(sqrtDiscriminant).div(denominator);
+                }
+                return B.negated().plus(sqrtDiscriminant).div(denominator);
+            }
+            case RegressionMode.AB_EXPONENTIAL:
+                if (a.isZero() || b.lte(0) || b.eq(1)) { throw Error.MATH_ERROR; }
+                return CommonOperators.ln(y.div(a)).div(CommonOperators.ln(b));
+            default:
+                throw Error.EMULATOR_ERROR;
+        }
     }
 
     private consumeToken(): Token | undefined {
