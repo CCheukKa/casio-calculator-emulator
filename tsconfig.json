@@ -18,7 +18,10 @@
         "paths": {
             "@lib/*": [
                 "./lib/*"
-            ]
+            ],
+            "@test/*": [
+                "./test/*"
+            ],
         },
         "allowImportingTsExtensions": true,
         "verbatimModuleSyntax": true,

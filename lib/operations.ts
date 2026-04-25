@@ -10,7 +10,8 @@ Decimal.set({
 export const PI = Decimal.acos(-1);
 export const E = Decimal.exp(1);
 
-const D = (value: Decimal.Value) => new Decimal(value);
+export const D = (value: Decimal.Value) => new Decimal(value);
+export const C = (re: Decimal.Value, im: Decimal.Value = 0) => ({ re: D(re), im: D(im) });
 
 // meta
 export const _toRadians = (a: Decimal, angleMode: AngleMode) => {
@@ -95,16 +96,20 @@ export class CommonOperators {
         return a.sqrt();
     }
     public static cube = (a: Decimal) => a.pow(3);
-    public static cubeRoot = (a: Decimal) => a.pow(D(1).div(3));
+    public static cubeRoot = (a: Decimal) => a.cubeRoot();
     public static power = (a: Decimal, b: Decimal) => {
         if (a.isZero() && b.lte(0)) { throw Error.MATH_ERROR; }
-        if (a.isNegative() && !b.isInteger()) { throw Error.MATH_ERROR; }
-        return a.pow(b);
+        if (a.gte(0)) { return _mathErrorGuard(a.pow(b)); }
+
+        // a<0
+        const [bNominator, bDenominator] = _mathErrorGuard(b).toFraction() as [Decimal, Decimal];
+        if (bDenominator.mod(2).eq(0)) { throw Error.MATH_ERROR; }
+        return _mathErrorGuard(a.abs().pow(b).mul(bNominator.mod(2).eq(0) ? 1 : -1));
     }
     public static xRoot = (a: Decimal, b: Decimal) => {
         if (a.isZero()) { throw Error.MATH_ERROR; }
-        if (b.lt(0) && a.mod(2).isZero()) { throw Error.MATH_ERROR; }
-        return b.pow(D(1).div(a));
+        if (a.lt(0)) { return _mathErrorGuard(D(1).div(this.power(b, D(1).div(a.abs())))); }
+        return _mathErrorGuard(this.power(b, D(1).div(a)));
     }
     public static log = (a: Decimal, b?: Decimal) => {
         if (b === undefined) {
@@ -209,29 +214,28 @@ export class CommonOperators {
     }
 }
 // complex-compatible operators
-type complex = { re: Decimal, im: Decimal }
+export type Complex = { re: Decimal, im: Decimal }
 export class ComplexOperators {
-    private static toComplex = (a: Decimal): complex => ({ re: a, im: D(0) });
-    private static equal = (a: complex, b: complex) => a.re.eq(b.re) && a.im.eq(b.im);
-    private static assertReal = (a: complex, error = Error.MATH_ERROR) => {
+    public static equal = (a: Complex, b: Complex) => a.re.eq(b.re) && a.im.eq(b.im);
+    private static assertReal = (a: Complex, error = Error.MATH_ERROR) => {
         if (!a.im.isZero()) { throw error; }
     };
 
     // basic arithmetic
-    public static add = (a: complex, b: complex): complex => ({
+    public static add = (a: Complex, b: Complex): Complex => ({
         re: a.re.plus(b.re),
         im: a.im.plus(b.im)
     });
-    public static subtract = (a: complex, b: complex): complex => ({
+    public static subtract = (a: Complex, b: Complex): Complex => ({
         re: a.re.minus(b.re),
         im: a.im.minus(b.im)
     });
-    public static multiply = (a: complex, b: complex): complex => ({
+    public static multiply = (a: Complex, b: Complex): Complex => ({
         re: a.re.times(b.re).minus(a.im.times(b.im)),
         im: a.re.times(b.im).plus(a.im.times(b.re))
     });
-    public static divide = (a: complex, b: complex) => {
-        if (this.equal(b, this.toComplex(D(0)))) { throw Error.MATH_ERROR; }
+    public static divide = (a: Complex, b: Complex) => {
+        if (this.equal(b, C(D(0)))) { throw Error.MATH_ERROR; }
         const conjugateB = this.conjugate(b);
         const nominator = this.multiply(a, conjugateB);
         const denominator = b.re.pow(2).plus(b.im.pow(2));
@@ -240,89 +244,89 @@ export class ComplexOperators {
             im: nominator.im.div(denominator)
         }
     }
-    public static sciExp = (a: complex, b: complex): complex => {
+    public static sciExp = (a: Complex, b: Complex): Complex => {
         this.assertReal(a, Error.EMULATOR_ERROR);
         this.assertReal(b, Error.EMULATOR_ERROR);
-        return this.multiply(a, this.toComplex(D(10).pow(b.re)));
+        return this.multiply(a, C(D(10).pow(b.re)));
     }
-    public static negative = (a: complex): complex => ({ re: a.re.negated(), im: a.im.negated() });
-    public static abs = (a: complex): complex => ({ re: a.re.pow(2).plus(a.im.pow(2)).sqrt(), im: D(0) });
-    public static conjugate = (a: complex): complex => ({ re: a.re, im: a.im.negated() });
+    public static negative = (a: Complex): Complex => ({ re: a.re.negated(), im: a.im.negated() });
+    public static abs = (a: Complex): Complex => ({ re: a.re.pow(2).plus(a.im.pow(2)).sqrt(), im: D(0) });
+    public static conjugate = (a: Complex): Complex => ({ re: a.re, im: a.im.negated() });
 
     // trigonometric functions
-    public static sin = (a: complex, angleMode: AngleMode): complex => {
+    public static sin = (a: Complex, angleMode: AngleMode): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.sin(a.re, angleMode));
+        return C(CommonOperators.sin(a.re, angleMode));
     }
-    public static cos = (a: complex, angleMode: AngleMode): complex => {
+    public static cos = (a: Complex, angleMode: AngleMode): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.cos(a.re, angleMode));
+        return C(CommonOperators.cos(a.re, angleMode));
     }
-    public static tan = (a: complex, angleMode: AngleMode): complex => {
+    public static tan = (a: Complex, angleMode: AngleMode): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.tan(a.re, angleMode));
+        return C(CommonOperators.tan(a.re, angleMode));
     }
-    public static asin = (a: complex, angleMode: AngleMode): complex => {
+    public static asin = (a: Complex, angleMode: AngleMode): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.asin(a.re, angleMode));
+        return C(CommonOperators.asin(a.re, angleMode));
     }
-    public static acos = (a: complex, angleMode: AngleMode): complex => {
+    public static acos = (a: Complex, angleMode: AngleMode): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.acos(a.re, angleMode));
+        return C(CommonOperators.acos(a.re, angleMode));
     }
-    public static atan = (a: complex, angleMode: AngleMode): complex => {
+    public static atan = (a: Complex, angleMode: AngleMode): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.atan(a.re, angleMode));
+        return C(CommonOperators.atan(a.re, angleMode));
     }
-    public static sinh = (a: complex): complex => {
+    public static sinh = (a: Complex): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.sinh(a.re));
+        return C(CommonOperators.sinh(a.re));
     }
-    public static cosh = (a: complex): complex => {
+    public static cosh = (a: Complex): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.cosh(a.re));
+        return C(CommonOperators.cosh(a.re));
     }
-    public static tanh = (a: complex): complex => {
+    public static tanh = (a: Complex): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.tanh(a.re));
+        return C(CommonOperators.tanh(a.re));
     }
-    public static asinh = (a: complex): complex => {
+    public static asinh = (a: Complex): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.asinh(a.re));
+        return C(CommonOperators.asinh(a.re));
     }
-    public static acosh = (a: complex): complex => {
+    public static acosh = (a: Complex): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.acosh(a.re));
+        return C(CommonOperators.acosh(a.re));
     }
-    public static atanh = (a: complex): complex => {
+    public static atanh = (a: Complex): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.atanh(a.re));
+        return C(CommonOperators.atanh(a.re));
     }
 
     // power and logarithm
-    public static square = (a: complex): complex => this.multiply(a, a);
-    public static sqrt = (a: complex): complex => {
+    public static square = (a: Complex): Complex => this.multiply(a, a);
+    public static sqrt = (a: Complex): Complex => {
         this.assertReal(a);
         if (a.re.gte(0)) {
-            return this.toComplex(a.re.sqrt());
+            return C(a.re.sqrt());
         } else {
             return { re: D(0), im: a.re.negated().sqrt() };
         }
     }
-    public static cube = (a: complex): complex => this.multiply(this.multiply(a, a), a);
-    public static cubeRoot = (a: complex): complex => {
+    public static cube = (a: Complex): Complex => this.multiply(this.multiply(a, a), a);
+    public static cubeRoot = (a: Complex): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.cubeRoot(a.re));
+        return C(CommonOperators.cubeRoot(a.re));
     }
-    public static power = (a: complex, b: complex): complex => {
+    public static power = (a: Complex, b: Complex): Complex => {
         this.assertReal(b);
-        if (this.equal(a, this.toComplex(D(0))) && b.re.lte(0)) { throw Error.MATH_ERROR; }
-        if (a.im.isZero()) { return this.toComplex(CommonOperators.power(a.re, b.re)) }
+        if (this.equal(a, C(D(0))) && b.re.lte(0)) { throw Error.MATH_ERROR; }
+        if (a.im.isZero()) { return C(CommonOperators.power(a.re, b.re)) }
         if (!b.re.isInteger()) { throw Error.MATH_ERROR; }
 
         if (b.re.eq(-1)) { return this.inverse(a); }
         if (b.re.lt(0)) { throw Error.MATH_ERROR; }
-        if (b.re.isZero()) { return this.toComplex(D(1)); }
+        if (b.re.isZero()) { return C(D(1)); }
 
         let result = a;
         for (let i = D(1); i.lt(b.re); i = i.plus(1)) {
@@ -330,50 +334,50 @@ export class ComplexOperators {
         }
         return result;
     }
-    public static xRoot = (a: complex, b: complex): complex => {
-        if (this.equal(a, this.toComplex(D(0)))) { throw Error.MATH_ERROR; }
+    public static xRoot = (a: Complex, b: Complex): Complex => {
+        if (this.equal(a, C(D(0)))) { throw Error.MATH_ERROR; }
         this.assertReal(a);
         this.assertReal(b);
-        return this.toComplex(CommonOperators.xRoot(a.re, b.re));
+        return C(CommonOperators.xRoot(a.re, b.re));
     }
-    public static log = (a: complex, b?: complex): complex => {
+    public static log = (a: Complex, b?: Complex): Complex => {
         this.assertReal(a);
         if (b !== undefined) { this.assertReal(b); }
-        return this.toComplex(CommonOperators.log(a.re, b ? b.re : undefined));
+        return C(CommonOperators.log(a.re, b ? b.re : undefined));
     }
-    public static ln = (a: complex): complex => {
+    public static ln = (a: Complex): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.ln(a.re));
+        return C(CommonOperators.ln(a.re));
     }
-    public static exp = (a: complex): complex => {
+    public static exp = (a: Complex): Complex => {
         this.assertReal(a);
-        return this.power(this.toComplex(E), a);
+        return this.power(C(E), a);
     }
-    public static inverse = (a: complex): complex => {
-        if (this.equal(a, this.toComplex(D(0)))) { throw Error.MATH_ERROR; }
-        return this.divide(this.toComplex(D(1)), a);
+    public static inverse = (a: Complex): Complex => {
+        if (this.equal(a, C(D(0)))) { throw Error.MATH_ERROR; }
+        return this.divide(C(D(1)), a);
     }
 
     // combinatorics
-    public static factorial = (a: complex): complex => {
+    public static factorial = (a: Complex): Complex => {
         this.assertReal(a);
-        return this.toComplex(CommonOperators.factorial(a.re));
+        return C(CommonOperators.factorial(a.re));
     }
-    public static permutation = (n: complex, r: complex): complex => {
+    public static permutation = (n: Complex, r: Complex): Complex => {
         this.assertReal(n);
         this.assertReal(r);
-        return this.toComplex(CommonOperators.permutation(n.re, r.re));
+        return C(CommonOperators.permutation(n.re, r.re));
     }
-    public static combination = (n: complex, r: complex): complex => {
+    public static combination = (n: Complex, r: Complex): Complex => {
         this.assertReal(n);
         this.assertReal(r);
-        return this.toComplex(CommonOperators.combination(n.re, r.re));
+        return C(CommonOperators.combination(n.re, r.re));
     }
 
     // polar and rectangular coordinates
-    public static polar = (a: complex): complex => a;
-    public static rectangular = (a: complex): complex => a;
-    public static angle = (r: complex, θ: complex, angleMode: AngleMode): complex => {
+    public static polar = (a: Complex): Complex => a;
+    public static rectangular = (a: Complex): Complex => a;
+    public static angle = (r: Complex, θ: Complex, angleMode: AngleMode): Complex => {
         this.assertReal(r);
         this.assertReal(θ);
         let radianθ: Decimal;
@@ -394,7 +398,7 @@ export class ComplexOperators {
     }
 
     // other functions
-    public static round = (a: complex, numberDisplayMode: NumberDisplayMode): complex => {
+    public static round = (a: Complex, numberDisplayMode: NumberDisplayMode): Complex => {
         switch (numberDisplayMode) {
             case NumberDisplayMode.FIXED_POINT_0: return { re: a.re.toDecimalPlaces(0), im: a.im.toDecimalPlaces(0) };
             case NumberDisplayMode.FIXED_POINT_1: return { re: a.re.toDecimalPlaces(1), im: a.im.toDecimalPlaces(1) };
@@ -410,32 +414,32 @@ export class ComplexOperators {
                 return a;
         }
     }
-    public static random = (): complex => this.toComplex(Decimal.random());
-    public static fromDegree = (a: complex, angleMode: AngleMode): complex => {
+    public static random = (): Complex => C(Decimal.random());
+    public static fromDegree = (a: Complex, angleMode: AngleMode): Complex => {
         this.assertReal(a);
         switch (angleMode) {
             case AngleMode.DEGREE: return a;
-            case AngleMode.RADIAN: return this.toComplex(_toRadians(a.re, AngleMode.DEGREE));
-            case AngleMode.GRADIAN: return this.toComplex(_toGradians(a.re, AngleMode.DEGREE));
+            case AngleMode.RADIAN: return C(_toRadians(a.re, AngleMode.DEGREE));
+            case AngleMode.GRADIAN: return C(_toGradians(a.re, AngleMode.DEGREE));
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static fromRadian = (a: complex, angleMode: AngleMode): complex => {
+    public static fromRadian = (a: Complex, angleMode: AngleMode): Complex => {
         this.assertReal(a);
         switch (angleMode) {
-            case AngleMode.DEGREE: return this.toComplex(_toDegrees(a.re, AngleMode.RADIAN));
+            case AngleMode.DEGREE: return C(_toDegrees(a.re, AngleMode.RADIAN));
             case AngleMode.RADIAN: return a;
-            case AngleMode.GRADIAN: return this.toComplex(_toGradians(a.re, AngleMode.RADIAN));
+            case AngleMode.GRADIAN: return C(_toGradians(a.re, AngleMode.RADIAN));
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static fromGradian = (a: complex, angleMode: AngleMode): complex => {
+    public static fromGradian = (a: Complex, angleMode: AngleMode): Complex => {
         this.assertReal(a);
         switch (angleMode) {
-            case AngleMode.DEGREE: return this.toComplex(_toDegrees(a.re, AngleMode.GRADIAN));
-            case AngleMode.RADIAN: return this.toComplex(_toRadians(a.re, AngleMode.GRADIAN));
+            case AngleMode.DEGREE: return C(_toDegrees(a.re, AngleMode.GRADIAN));
+            case AngleMode.RADIAN: return C(_toRadians(a.re, AngleMode.GRADIAN));
             case AngleMode.GRADIAN: return a;
             default:
                 throw Error.EMULATOR_ERROR;
@@ -731,77 +735,77 @@ export class StatisticsOperators {
     //
     public static regressionA = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode) => {
         switch (regressionMode) {
-            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, {}).a!;
-            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, {}).a!;
-            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, {}).a!;
-            case RegressionMode.POWER: return this.powerRegression(xData, yData, {}).a!;
-            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, {}).a!;
-            case RegressionMode.QUADRATIC: return this.quadraticRegression(xData, yData, {}).a;
-            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, {}).a!;
+            case RegressionMode.LINEAR: return _mathErrorGuard(this.linearRegression(xData, yData, {}).a!);
+            case RegressionMode.LOGARITHMIC: return _mathErrorGuard(this.logarithmicRegression(xData, yData, {}).a!);
+            case RegressionMode.EXPONENTIAL: return _mathErrorGuard(this.exponentialRegression(xData, yData, {}).a!);
+            case RegressionMode.POWER: return _mathErrorGuard(this.powerRegression(xData, yData, {}).a!);
+            case RegressionMode.INVERSE: return _mathErrorGuard(this.inverseRegression(xData, yData, {}).a!);
+            case RegressionMode.QUADRATIC: return _mathErrorGuard(this.quadraticRegression(xData, yData, {}).a);
+            case RegressionMode.AB_EXPONENTIAL: return _mathErrorGuard(this.abExponentialRegression(xData, yData, {}).a!);
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
     public static regressionB = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode) => {
         switch (regressionMode) {
-            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, {}).b!;
-            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, {}).b!;
-            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, {}).b!;
-            case RegressionMode.POWER: return this.powerRegression(xData, yData, {}).b!;
-            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, {}).b!;
-            case RegressionMode.QUADRATIC: return this.quadraticRegression(xData, yData, {}).b;
-            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, {}).b!;
+            case RegressionMode.LINEAR: return _mathErrorGuard(this.linearRegression(xData, yData, {}).b!);
+            case RegressionMode.LOGARITHMIC: return _mathErrorGuard(this.logarithmicRegression(xData, yData, {}).b!);
+            case RegressionMode.EXPONENTIAL: return _mathErrorGuard(this.exponentialRegression(xData, yData, {}).b!);
+            case RegressionMode.POWER: return _mathErrorGuard(this.powerRegression(xData, yData, {}).b!);
+            case RegressionMode.INVERSE: return _mathErrorGuard(this.inverseRegression(xData, yData, {}).b!);
+            case RegressionMode.QUADRATIC: return _mathErrorGuard(this.quadraticRegression(xData, yData, {}).b);
+            case RegressionMode.AB_EXPONENTIAL: return _mathErrorGuard(this.abExponentialRegression(xData, yData, {}).b!);
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
     public static regressionC = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode.QUADRATIC) => {
         if (regressionMode !== RegressionMode.QUADRATIC) { throw Error.EMULATOR_ERROR; }
-        return this.quadraticRegression(xData, yData, {}).c;
+        return _mathErrorGuard(this.quadraticRegression(xData, yData, {}).c);
     }
     public static estimatedX = (xData: Decimal[], yData: Decimal[], regressionMode: Exclude<RegressionMode, RegressionMode.QUADRATIC>, y: Decimal) => {
         switch (regressionMode) {
-            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, { y }).x!;
-            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, { y }).x!;
-            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, { y }).x!;
-            case RegressionMode.POWER: return this.powerRegression(xData, yData, { y }).x!;
-            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, { y }).x!;
+            case RegressionMode.LINEAR: return _mathErrorGuard(this.linearRegression(xData, yData, { y }).x!);
+            case RegressionMode.LOGARITHMIC: return _mathErrorGuard(this.logarithmicRegression(xData, yData, { y }).x!);
+            case RegressionMode.EXPONENTIAL: return _mathErrorGuard(this.exponentialRegression(xData, yData, { y }).x!);
+            case RegressionMode.POWER: return _mathErrorGuard(this.powerRegression(xData, yData, { y }).x!);
+            case RegressionMode.INVERSE: return _mathErrorGuard(this.inverseRegression(xData, yData, { y }).x!);
             // case RegressionMode.QUADRATIC: throw Error.EMULATOR_ERROR;
-            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, { y }).x!;
+            case RegressionMode.AB_EXPONENTIAL: return _mathErrorGuard(this.abExponentialRegression(xData, yData, { y }).x!);
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
     public static estimatedX1 = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode.QUADRATIC, y: Decimal) => {
         if (regressionMode !== RegressionMode.QUADRATIC) { throw Error.EMULATOR_ERROR; }
-        return this.quadraticRegression(xData, yData, { y }).x1!;
+        return _mathErrorGuard(this.quadraticRegression(xData, yData, { y }).x1!);
     }
     public static estimatedX2 = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode.QUADRATIC, y: Decimal) => {
         if (regressionMode !== RegressionMode.QUADRATIC) { throw Error.EMULATOR_ERROR; }
-        return this.quadraticRegression(xData, yData, { y }).x2!;
+        return _mathErrorGuard(this.quadraticRegression(xData, yData, { y }).x2!);
     }
     public static estimatedY = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode, x: Decimal) => {
         switch (regressionMode) {
-            case RegressionMode.LINEAR: return this.linearRegression(xData, yData, { x }).y!;
-            case RegressionMode.LOGARITHMIC: return this.logarithmicRegression(xData, yData, { x }).y!;
-            case RegressionMode.EXPONENTIAL: return this.exponentialRegression(xData, yData, { x }).y!;
-            case RegressionMode.POWER: return this.powerRegression(xData, yData, { x }).y!;
-            case RegressionMode.INVERSE: return this.inverseRegression(xData, yData, { x }).y!;
-            case RegressionMode.QUADRATIC: return this.quadraticRegression(xData, yData, { x }).y!;
-            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegression(xData, yData, { x }).y!;
+            case RegressionMode.LINEAR: return _mathErrorGuard(this.linearRegression(xData, yData, { x }).y!);
+            case RegressionMode.LOGARITHMIC: return _mathErrorGuard(this.logarithmicRegression(xData, yData, { x }).y!);
+            case RegressionMode.EXPONENTIAL: return _mathErrorGuard(this.exponentialRegression(xData, yData, { x }).y!);
+            case RegressionMode.POWER: return _mathErrorGuard(this.powerRegression(xData, yData, { x }).y!);
+            case RegressionMode.INVERSE: return _mathErrorGuard(this.inverseRegression(xData, yData, { x }).y!);
+            case RegressionMode.QUADRATIC: return _mathErrorGuard(this.quadraticRegression(xData, yData, { x }).y!);
+            case RegressionMode.AB_EXPONENTIAL: return _mathErrorGuard(this.abExponentialRegression(xData, yData, { x }).y!);
             default:
                 throw Error.EMULATOR_ERROR;
         }
     }
-    public static correlationCoefficient = (xData: Decimal[], yData: Decimal[], regressionMode: RegressionMode) => {
+    public static correlationCoefficient = (xData: Decimal[], yData: Decimal[], regressionMode: Exclude<RegressionMode, RegressionMode.QUADRATIC>) => {
         switch (regressionMode) {
-            case RegressionMode.LINEAR: return this.linearRegressionCorrelationCoefficient(xData, yData);
-            case RegressionMode.LOGARITHMIC: return this.logarithmicRegressionCorrelationCoefficient(xData, yData);
-            case RegressionMode.EXPONENTIAL: return this.exponentialRegressionCorrelationCoefficient(xData, yData);
-            case RegressionMode.POWER: return this.powerRegressionCorrelationCoefficient(xData, yData);
-            case RegressionMode.INVERSE: return this.inverseRegressionCorrelationCoefficient(xData, yData);
-            case RegressionMode.QUADRATIC: throw Error.EMULATOR_ERROR;
-            case RegressionMode.AB_EXPONENTIAL: return this.abExponentialRegressionCorrelationCoefficient(xData, yData);
+            case RegressionMode.LINEAR: return _mathErrorGuard(this.linearRegressionCorrelationCoefficient(xData, yData));
+            case RegressionMode.LOGARITHMIC: return _mathErrorGuard(this.logarithmicRegressionCorrelationCoefficient(xData, yData));
+            case RegressionMode.EXPONENTIAL: return _mathErrorGuard(this.exponentialRegressionCorrelationCoefficient(xData, yData));
+            case RegressionMode.POWER: return _mathErrorGuard(this.powerRegressionCorrelationCoefficient(xData, yData));
+            case RegressionMode.INVERSE: return _mathErrorGuard(this.inverseRegressionCorrelationCoefficient(xData, yData));
+            // case RegressionMode.QUADRATIC: throw Error.EMULATOR_ERROR;
+            case RegressionMode.AB_EXPONENTIAL: return _mathErrorGuard(this.abExponentialRegressionCorrelationCoefficient(xData, yData));
             default:
                 throw Error.EMULATOR_ERROR;
         }

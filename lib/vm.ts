@@ -7,7 +7,7 @@ import Decimal from "decimal.js";
 const decimal = (value: Decimal.Value) => new Decimal(value);
 const decimalToNumber = (value: Decimal) => value.toNumber();
 
-class State {
+export class State {
     public calculatorMode: CalculatorMode;
     public angleMode: AngleMode;
     public numberDisplayMode: NumberDisplayMode;
@@ -170,8 +170,8 @@ export class VM {
     public state: State;
     private parseState: ParseState | undefined;
 
-    constructor() {
-        this.state = new State({});
+    constructor(state?: Partial<State>) {
+        this.state = new State(state ?? {});
     }
 
     public execute(tokens: Token[]): void {

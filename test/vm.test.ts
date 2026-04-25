@@ -2,42 +2,34 @@ import { describe, expect, test } from "bun:test";
 
 import { Error } from "@lib/errors";
 import { Token } from "@lib/tokens";
-import { VM } from "@lib/vm";
+import { State, VM } from "@lib/vm";
+import { CalculatorMode } from "@lib/modes";
+import { expectThrowsValue } from "@test/test";
 
-const runProgram = (program: Token[]) => {
-    const vm = new VM();
+const runProgram = (calculatorMode: CalculatorMode, program: Token[]) => {
+    const vm = new VM(new State({ calculatorMode }));
     vm.execute(program);
     return vm;
 };
 
-const expectThrowsValue = (fn: () => void, expected: unknown) => {
-    try {
-        fn();
-    } catch (error) {
-        expect(error).toBe(expected);
-        return;
-    }
-    throw new globalThis.Error("Expected function to throw.");
-};
-
 describe("VM parsing and execution edge cases", () => {
     test("empty program does not throw", () => {
-        const vm = runProgram([]);
+        const vm = runProgram(CalculatorMode.COMPUTATION, []);
         expect(vm.state.answer).toBe(0);
         expect(vm.state.shouldDisplay).toBe(false);
     });
 
     test("DISPLAY alone is syntax error", () => {
-        expectThrowsValue(() => runProgram([Token.DISPLAY]), Error.SYNTAX_ERROR);
+        expectThrowsValue(() => runProgram(CalculatorMode.COMPUTATION, [Token.DISPLAY]), Error.SYNTAX_ERROR);
     });
 
     test("EXECUTION_DELIMITER alone is syntax error", () => {
-        expectThrowsValue(() => runProgram([Token.EXECUTION_DELIMITER]), Error.SYNTAX_ERROR);
+        expectThrowsValue(() => runProgram(CalculatorMode.COMPUTATION, [Token.EXECUTION_DELIMITER]), Error.SYNTAX_ERROR);
     });
 
     test("double delimiter with no instruction between throws syntax error", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.NUMBER_1,
                 Token.EXECUTION_DELIMITER,
                 Token.EXECUTION_DELIMITER,
@@ -47,13 +39,13 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("EOF acts like display for shouldDisplay", () => {
-        const vm = runProgram([Token.NUMBER_2, Token.PLUS, Token.NUMBER_3]);
+        const vm = runProgram(CalculatorMode.COMPUTATION, [Token.NUMBER_2, Token.PLUS, Token.NUMBER_3]);
         expect(vm.state.answer).toBe(5);
         expect(vm.state.shouldDisplay).toBe(true);
     });
 
     test("EXE hides display and still updates answer", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_2,
             Token.PLUS,
             Token.NUMBER_3,
@@ -64,7 +56,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("DISPLAY shows display and updates answer", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_2,
             Token.PLUS,
             Token.NUMBER_3,
@@ -75,7 +67,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("multi-line program can reuse Ans across lines", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_2,
             Token.PLUS,
             Token.NUMBER_3,
@@ -90,7 +82,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("auto-closes missing parenthesis for parenthetical function", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.SINE,
             Token.NUMBER_4,
             Token.NUMBER_5,
@@ -106,14 +98,14 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("explicit and symbol-parenthetical forms both parse", () => {
-        const vmA = runProgram([
+        const vmA = runProgram(CalculatorMode.COMPUTATION, [
             Token.SINE,
             Token.NUMBER_4,
             Token.NUMBER_5,
             Token.DISPLAY,
         ]);
 
-        const vmB = runProgram([
+        const vmB = runProgram(CalculatorMode.COMPUTATION, [
             Token.SINE,
             Token.NUMBER_4,
             Token.NUMBER_5,
@@ -125,7 +117,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("unbalanced plain parenthesis is auto-closed at end of instruction", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.LEFT_PARENTHESIS,
             Token.NUMBER_1,
             Token.PLUS,
@@ -139,7 +131,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("operator precedence: multiply before add", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_1,
             Token.PLUS,
             Token.NUMBER_2,
@@ -151,7 +143,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("parentheses override precedence", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.LEFT_PARENTHESIS,
             Token.NUMBER_1,
             Token.PLUS,
@@ -165,7 +157,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("division is left-associative", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_8,
             Token.DIVIDE,
             Token.NUMBER_4,
@@ -177,7 +169,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("minus acts as unary operator when preceding a number", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.MINUS,
             Token.NUMBER_3,
             Token.MULTIPLY,
@@ -188,7 +180,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("postfix priority above unary minus", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NEGATIVE,
             Token.NUMBER_2,
             Token.SQUARE,
@@ -198,12 +190,12 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("unary minus gives same answer as negative token", () => {
-        const vmUnary = runProgram([
+        const vmUnary = runProgram(CalculatorMode.COMPUTATION, [
             Token.MINUS,
             Token.NUMBER_2,
             Token.DISPLAY,
         ]);
-        const vmNegative = runProgram([
+        const vmNegative = runProgram(CalculatorMode.COMPUTATION, [
             Token.NEGATIVE,
             Token.NUMBER_2,
             Token.DISPLAY,
@@ -213,7 +205,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("power token without required parenthetical close throws syntax error", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.MINUS,
                 Token.NUMBER_2,
                 Token.POWER,
@@ -224,7 +216,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("decimal number parsing", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_1,
             Token.DECIMAL_POINT,
             Token.NUMBER_2,
@@ -235,7 +227,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("decimal point without following number is allowed", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_1,
             Token.DECIMAL_POINT,
             Token.DISPLAY,
@@ -244,7 +236,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("scientific notation parsing", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_1,
             Token.SCIENTIFIC_EXPONENTIATION,
             Token.NUMBER_2,
@@ -254,7 +246,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("scientific notation with hanging decimal point in base is accepted", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_1,
             Token.DECIMAL_POINT,
             Token.SCIENTIFIC_EXPONENTIATION,
@@ -264,7 +256,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("scientific notation with signed exponent is accepted", () => {
-        const vmPos = runProgram([
+        const vmPos = runProgram(CalculatorMode.COMPUTATION, [
             Token.MINUS,
             Token.NUMBER_1,
             Token.SCIENTIFIC_EXPONENTIATION,
@@ -274,7 +266,7 @@ describe("VM parsing and execution edge cases", () => {
         ]);
         expect(vmPos.state.answer).toBe(-100);
 
-        const vmNeg = runProgram([
+        const vmNeg = runProgram(CalculatorMode.COMPUTATION, [
             Token.MINUS,
             Token.NUMBER_1,
             Token.SCIENTIFIC_EXPONENTIATION,
@@ -286,7 +278,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("scientific notation without base number is accepted and treated as 1", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.SCIENTIFIC_EXPONENTIATION,
             Token.NUMBER_2,
             Token.DISPLAY,
@@ -296,7 +288,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("scientific notation does not allow decimal point in exponent", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.NUMBER_1,
                 Token.SCIENTIFIC_EXPONENTIATION,
                 Token.NUMBER_2,
@@ -309,7 +301,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("scientific notation does not allow non-numeric tokens in base", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.LEFT_PARENTHESIS,
                 Token.NUMBER_1,
                 Token.RIGHT_PARENTHESIS,
@@ -319,7 +311,7 @@ describe("VM parsing and execution edge cases", () => {
             Error.SYNTAX_ERROR,
         );
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.VARIABLE_A,
                 Token.SCIENTIFIC_EXPONENTIATION,
                 Token.NUMBER_2,
@@ -327,7 +319,7 @@ describe("VM parsing and execution edge cases", () => {
             Error.SYNTAX_ERROR,
         );
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.PI,
                 Token.SCIENTIFIC_EXPONENTIATION,
                 Token.NUMBER_2,
@@ -335,7 +327,7 @@ describe("VM parsing and execution edge cases", () => {
             Error.SYNTAX_ERROR,
         );
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.IMAGINARY_UNIT,
                 Token.SCIENTIFIC_EXPONENTIATION,
                 Token.NUMBER_2,
@@ -346,7 +338,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("scientific notation does not allow non-numeric tokens in exponent", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.NUMBER_1,
                 Token.SCIENTIFIC_EXPONENTIATION,
                 Token.LEFT_PARENTHESIS,
@@ -356,7 +348,7 @@ describe("VM parsing and execution edge cases", () => {
             Error.SYNTAX_ERROR,
         );
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.NUMBER_1,
                 Token.SCIENTIFIC_EXPONENTIATION,
                 Token.VARIABLE_A,
@@ -364,7 +356,7 @@ describe("VM parsing and execution edge cases", () => {
             Error.SYNTAX_ERROR,
         );
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.NUMBER_2,
                 Token.SCIENTIFIC_EXPONENTIATION,
                 Token.IMAGINARY_UNIT,
@@ -375,7 +367,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("invalid numeric token sequence throws syntax error", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.NUMBER_1,
                 Token.DECIMAL_POINT,
                 Token.DECIMAL_POINT,
@@ -398,7 +390,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("explicit multiplication with answer", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_4,
             Token.PLUS,
             Token.NUMBER_5,
@@ -412,7 +404,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("explicit multiplication with constant", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_2,
             Token.MULTIPLY,
             Token.PI,
@@ -422,7 +414,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("implicit multiplication with parenthetical function", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_2,
             Token.MULTIPLY,
             Token.SINE,
@@ -436,7 +428,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("improper implicit multiplication with variable throws syntax error", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.VARIABLE_A,
                 Token.NUMBER_2,
             ]),
@@ -446,7 +438,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("improper implicit multiplication with answer throws syntax error", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.ANSWER,
                 Token.NUMBER_2,
             ]),
@@ -456,7 +448,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("improper implicit multiplication with constant throws syntax error", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.PI,
                 Token.NUMBER_2,
             ]),
@@ -466,7 +458,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("improper implicit multiplication with parenthetical function throws syntax error", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.SINE,
                 Token.NUMBER_3,
                 Token.NUMBER_0,
@@ -506,7 +498,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("improper chaining of implicit multiplication throws syntax error", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.COSINE,
                 Token.NUMBER_3,
                 Token.NUMBER_0,
@@ -521,7 +513,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("two-arg parenthetical call via comma parses", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.LOGARITHM,
             Token.NUMBER_2,
             Token.COMMA,
@@ -534,7 +526,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("comma outside function context throws syntax error", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.NUMBER_1,
                 Token.COMMA,
                 Token.NUMBER_2,
@@ -544,7 +536,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("logical and relational operators return numeric truth values", () => {
-        const vmRel = runProgram([
+        const vmRel = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_3,
             Token.GREATER_THAN,
             Token.NUMBER_2,
@@ -552,7 +544,7 @@ describe("VM parsing and execution edge cases", () => {
         ]);
         expect(vmRel.state.answer).toBe(1);
 
-        const vmAnd = runProgram([
+        const vmAnd = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_1,
             Token.AND,
             Token.NUMBER_0,
@@ -563,7 +555,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("math domain errors surface from operations", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.NUMBER_0,
                 Token.INVERSE,
             ]),
@@ -572,7 +564,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("state survives and updates across multiple instruction lines", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_1,
             Token.PLUS,
             Token.NUMBER_2,
@@ -592,7 +584,7 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("answer can be used multiple times across instruction lines", () => {
-        const vm = runProgram([
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_2,
             Token.MULTIPLY,
             Token.NUMBER_3,
@@ -607,11 +599,9 @@ describe("VM parsing and execution edge cases", () => {
         expect(vm.state.answer).toBe(5 * 6 * 6);
         expect(vm.state.shouldDisplay).toBe(true);
     });
-});
 
-describe("VM positive/negative error generation", () => {
-    test("positive: unary math function executes", () => {
-        const vm = runProgram([
+    test("unary math function executes", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.SQUARE_ROOT,
             Token.NUMBER_9,
             Token.RIGHT_PARENTHESIS,
@@ -620,9 +610,9 @@ describe("VM positive/negative error generation", () => {
         expect(vm.state.answer).toBe(3);
     });
 
-    test("negative: sqrt of negative throws MathError", () => {
+    test("sqrt of negative throws MathError", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.SQUARE_ROOT,
                 Token.NEGATIVE,
                 Token.NUMBER_1,
@@ -632,8 +622,8 @@ describe("VM positive/negative error generation", () => {
         );
     });
 
-    test("positive: logarithm with one argument executes", () => {
-        const vm = runProgram([
+    test("logarithm with one argument executes", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.LOGARITHM,
             Token.NUMBER_1,
             Token.NUMBER_0,
@@ -644,9 +634,9 @@ describe("VM positive/negative error generation", () => {
         expect(vm.state.answer).toBe(2);
     });
 
-    test("negative: logarithm call with unsupported arity throws EMULATOR_ERROR", () => {
+    test("logarithm call with unsupported arity throws EMULATOR_ERROR", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.LOGARITHM,
                 Token.NUMBER_2,
                 Token.COMMA,
@@ -659,8 +649,8 @@ describe("VM positive/negative error generation", () => {
         );
     });
 
-    test("positive: factorial executes for integer", () => {
-        const vm = runProgram([
+    test("factorial executes for integer", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_5,
             Token.FACTORIAL,
             Token.DISPLAY,
@@ -668,9 +658,9 @@ describe("VM positive/negative error generation", () => {
         expect(vm.state.answer).toBe(120);
     });
 
-    test("negative: factorial throws MathError for non-integer", () => {
+    test("factorial throws MathError for non-integer", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.NUMBER_1,
                 Token.DECIMAL_POINT,
                 Token.NUMBER_5,
@@ -680,8 +670,8 @@ describe("VM positive/negative error generation", () => {
         );
     });
 
-    test("positive: parser accepts trailing auto-close for nested expression", () => {
-        const vm = runProgram([
+    test("parser accepts trailing auto-close for nested expression", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.LEFT_PARENTHESIS,
             Token.LEFT_PARENTHESIS,
             Token.NUMBER_1,
@@ -694,9 +684,9 @@ describe("VM positive/negative error generation", () => {
         expect(vm.state.answer).toBe(7);
     });
 
-    test("negative: parser rejects malformed token sequence", () => {
+    test("parser rejects malformed token sequence", () => {
         expectThrowsValue(
-            () => runProgram([
+            () => runProgram(CalculatorMode.COMPUTATION, [
                 Token.PLUS,
                 Token.MULTIPLY,
             ]),
@@ -704,8 +694,8 @@ describe("VM positive/negative error generation", () => {
         );
     });
 
-    test("positive: DISPLAY line updates answer and shouldDisplay", () => {
-        const vm = runProgram([
+    test("DISPLAY line updates answer and shouldDisplay", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_8,
             Token.DIVIDE,
             Token.NUMBER_2,
@@ -715,13 +705,56 @@ describe("VM positive/negative error generation", () => {
         expect(vm.state.shouldDisplay).toBe(true);
     });
 
-    test("negative: division by zero stays finite or infinite but does not syntax-fail", () => {
-        const vm = runProgram([
+    test("division by zero stays finite or infinite but does not syntax-fail", () => {
+        const vm = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_1,
             Token.DIVIDE,
             Token.NUMBER_0,
             Token.DISPLAY,
         ]);
         expect(Number.isNaN(vm.state.answer)).toBe(false);
+    });
+
+    test("complex polar to rectangular conversion with proceeding tokens throws syntax error", () => {
+        expectThrowsValue(
+            () => runProgram(CalculatorMode.COMPLEX_NUMBER, [
+                Token.NUMBER_2,
+                Token.PLUS,
+                Token.IMAGINARY_UNIT,
+                Token.POLAR_COMPLEX,
+                Token.PLUS,
+                Token.NUMBER_3,
+            ]),
+            Error.SYNTAX_ERROR,
+        );
+    });
+
+    test("complex polar to rectangular conversion with proceeding EXECUTION_DELIMITER does not throw syntax error", () => {
+        const vm = runProgram(CalculatorMode.COMPLEX_NUMBER, [
+            Token.NUMBER_2,
+            Token.POLAR_COMPLEX,
+            Token.EXECUTION_DELIMITER,
+        ]);
+        expect(vm.state.answer).toBeCloseTo(2, 15);
+    });
+
+    test("complex polar to rectangular conversion with proceeding DISPLAY does not throw syntax error", () => {
+        const vm = runProgram(CalculatorMode.COMPLEX_NUMBER, [
+            Token.NUMBER_2,
+            Token.POLAR_COMPLEX,
+            Token.DISPLAY,
+        ]);
+        expect(vm.state.answer).toBeCloseTo(2, 15);
+        expect(vm.state.shouldDisplay).toBe(true);
+    });
+
+    test("complex polar to rectangular conversion", () => {
+        const vm = runProgram(CalculatorMode.COMPLEX_NUMBER, [
+            Token.NUMBER_1,
+            Token.PLUS,
+            Token.NUMBER_2,
+            Token.POLAR_COMPLEX,
+        ]);
+        expect(vm.state.answer).toBe(3);
     });
 });
