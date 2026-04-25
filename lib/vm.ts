@@ -1,8 +1,9 @@
 import { Error } from "@lib/errors";
-import { CommonOperators, D } from "@lib/operations";
+import { CommonOperators, D, E, PI } from "@lib/operations";
 import { AngleMode, CalculatorMode, FrequencyMode, NumberBase, NumberDisplayMode, RegressionMode } from "@lib/modes";
 import { Token, TokenSymbol } from "@lib/tokens";
 import Decimal from "decimal.js";
+import { CONSTANTS } from "./constants";
 
 export class State {
     public calculatorMode: CalculatorMode;
@@ -662,25 +663,6 @@ export class VM {
         return typeof symbol === "string" && symbol.endsWith("(");
     }
 
-    private isPostfixOperator(token: Token | undefined): boolean {
-        switch (token) {
-            case Token.FACTORIAL:
-            case Token.SQUARE:
-            case Token.CUBE:
-            case Token.INVERSE:
-            case Token.PERCENT:
-            case Token.X_ESTIMATED_VALUE:
-            case Token.X1_ESTIMATED_VALUE:
-            case Token.X2_ESTIMATED_VALUE:
-            case Token.Y_ESTIMATED_VALUE:
-            case Token.POLAR_COMPLEX:
-            case Token.RECTANGULAR_COMPLEX:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     private isNumberComponentToken(token: Token): boolean {
         switch (token) {
             case Token.NUMBER_0:
@@ -792,6 +774,46 @@ export class VM {
         switch (token) {
             case Token.PI:
             case Token.EULER_NUMBER:
+            case Token.PROTON_MASS:
+            case Token.NEUTRON_MASS:
+            case Token.ELECTRON_MASS:
+            case Token.MUON_MASS:
+            case Token.BOHR_RADIUS:
+            case Token.PLANCK_CONSTANT:
+            case Token.NUCLEAR_MAGNETON:
+            case Token.BOHR_MAGNETON:
+            case Token.PLANCK_CONSTANT_REDUCED:
+            case Token.FINE_STRUCTURE_CONSTANT:
+            case Token.CLASSICAL_ELECTRON_RADIUS:
+            case Token.ELECTRON_COMPTON_WAVELENGTH:
+            case Token.PROTON_GYROMAGNETIC_RATIO:
+            case Token.PROTON_COMPTON_WAVELENGTH:
+            case Token.NEUTRON_COMPTON_WAVELENGTH:
+            case Token.RYDBERG_CONSTANT:
+            case Token.ATOMIC_MASS_CONSTANT:
+            case Token.PROTON_MAGNETIC_MOMENT:
+            case Token.ELECTRON_MAGNETIC_MOMENT:
+            case Token.NEUTRON_MAGNETIC_MOMENT:
+            case Token.MUON_MAGNETIC_MOMENT:
+            case Token.FARADAY_CONSTANT:
+            case Token.ELEMENTARY_CHARGE:
+            case Token.AVOGADRO_CONSTANT:
+            case Token.BOLTZMANN_CONSTANT:
+            case Token.MOLAR_VOLUME_OF_IDEAL_GAS:
+            case Token.MOLAR_GAS_CONSTANT:
+            case Token.SPEED_OF_LIGHT_IN_VACUUM:
+            case Token.FIRST_RADIATION_CONSTANT:
+            case Token.SECOND_RADIATION_CONSTANT:
+            case Token.STEFAN_BOLTZMANN_CONSTANT:
+            case Token.VACUUM_PERMITTIVITY:
+            case Token.VACUUM_PERMEABILITY:
+            case Token.MAGNETIC_FLUX_QUANTUM:
+            case Token.STANDARD_ACCERLATION_OF_GRAVITY:
+            case Token.CONDUCTANCE_QUANTUM:
+            case Token.CHARACTERISTIC_IMPEDANCE_OF_VACUUM:
+            case Token.KELVIN_CELSIUS_SCALE_OFFSET:
+            case Token.GRAVITATIONAL_CONSTANT:
+            case Token.STANDARD_ATMOSPHERE:
                 return true;
             default:
                 return false;
@@ -814,8 +836,51 @@ export class VM {
 
     private readConstant(token: Token): Decimal {
         switch (token) {
-            case Token.PI: return D("3.1415926535897932384626433832795028841971");
-            case Token.EULER_NUMBER: return D("2.7182818284590452353602874713526624977572");
+            case Token.PI: return PI;
+            case Token.EULER_NUMBER: return E;
+            case Token.PROTON_MASS:
+            case Token.NEUTRON_MASS:
+            case Token.ELECTRON_MASS:
+            case Token.MUON_MASS:
+            case Token.BOHR_RADIUS:
+            case Token.PLANCK_CONSTANT:
+            case Token.NUCLEAR_MAGNETON:
+            case Token.BOHR_MAGNETON:
+            case Token.PLANCK_CONSTANT_REDUCED:
+            case Token.FINE_STRUCTURE_CONSTANT:
+            case Token.CLASSICAL_ELECTRON_RADIUS:
+            case Token.ELECTRON_COMPTON_WAVELENGTH:
+            case Token.PROTON_GYROMAGNETIC_RATIO:
+            case Token.PROTON_COMPTON_WAVELENGTH:
+            case Token.NEUTRON_COMPTON_WAVELENGTH:
+            case Token.RYDBERG_CONSTANT:
+            case Token.ATOMIC_MASS_CONSTANT:
+            case Token.PROTON_MAGNETIC_MOMENT:
+            case Token.ELECTRON_MAGNETIC_MOMENT:
+            case Token.NEUTRON_MAGNETIC_MOMENT:
+            case Token.MUON_MAGNETIC_MOMENT:
+            case Token.FARADAY_CONSTANT:
+            case Token.ELEMENTARY_CHARGE:
+            case Token.AVOGADRO_CONSTANT:
+            case Token.BOLTZMANN_CONSTANT:
+            case Token.MOLAR_VOLUME_OF_IDEAL_GAS:
+            case Token.MOLAR_GAS_CONSTANT:
+            case Token.SPEED_OF_LIGHT_IN_VACUUM:
+            case Token.FIRST_RADIATION_CONSTANT:
+            case Token.SECOND_RADIATION_CONSTANT:
+            case Token.STEFAN_BOLTZMANN_CONSTANT:
+            case Token.VACUUM_PERMITTIVITY:
+            case Token.VACUUM_PERMEABILITY:
+            case Token.MAGNETIC_FLUX_QUANTUM:
+            case Token.STANDARD_ACCERLATION_OF_GRAVITY:
+            case Token.CONDUCTANCE_QUANTUM:
+            case Token.CHARACTERISTIC_IMPEDANCE_OF_VACUUM:
+            case Token.KELVIN_CELSIUS_SCALE_OFFSET:
+            case Token.GRAVITATIONAL_CONSTANT:
+            case Token.STANDARD_ATMOSPHERE:
+                const value = CONSTANTS[token];
+                if (value === undefined) { throw Error.EMULATOR_ERROR; }
+                return D(value);
             default:
                 throw Error.EMULATOR_ERROR;
         }
@@ -999,71 +1064,3 @@ export class VM {
         return this.parseState === undefined || this.parseState.index >= this.parseState.tokens.length;
     }
 }
-
-/*
-    The calculator performs calculations you input in accordance with the priority sequence shown below.
-    - Basically, calculations are performed from left to right.
-    - Calculations enclosed in parentheses are given priority.
-    
-    Priority sequence:
-    1.
-        Parenthetical Functions
-            Pol(, Rec(
-            sin(, cos(, tan(, sin¹(, cos1(, tan 1(, sinh(, cosh(,
-            tanh(, sinh ¹(, cosh1(, tanh ¹(
-            log(, In(, e^(, 10^(, √(, 3√(
-            arg(, Abs(, Conjg(
-            Not(, Neg(, Rnd(
-    2.
-        Functions Preceded by Values
-            x², x³, x⁻¹, x!, °’”, °, ʳ, ᵍ
-        Power, Power Root
-            ^(, ˣ√(
-        Percent
-            %
-    3.
-        Fractions
-            aᵇ/꜀
-    4.
-        Prefix Symbols
-            (-) (minus sign)
-            d, h, b, o (number base symbol)
-    5.
-        Statistical Estimated Value Calculations
-        x̂, ŷ, x̂₁, x̂₂
-    6.
-        Permutation, Combination
-            nPr, nCr
-        Complex Number Symbol
-            ∠
-    7.
-        Multiplication, Division
-            ×, ÷
-        Omitted Multiplication Sign
-            Multiplication sign can be omitted immediately
-            before π, e, variables, scientific constants (2π, 5A,
-            πА, 3mₚ, 2i, etc.), and parenthetical functions
-            (2√(3), Asin(30), etc.)
-    8.
-        Addition, Subtraction
-            +,-
-    9.
-        Relational Operators
-            =, ≠, >, <, 2, ≤
-    10.
-        Logical Product
-            and
-    11.
-        Logical Sum, Exclusive Logical Sum, Exclusive Negative Logical Sum
-            or, xor, xnor
-    
-    If a calculation contains a negative value, you may need to enclose the negative value in
-    parentheses. If you want to square the value –2, for example, you need to input: (-2)².This is
-    because x² is a function preceded by a value (Priority 2, above), whose priority is greater than the
-    negative sign, which is a prefix symbol (Priority 4).
-
-    Multiplication and division, and multiplication where the sign is omitted are the same priority
-    (Priority 7), so these operations are performed from left to right when both types are mixed in the
-    same calculation. Enclosing an operation in parentheses causes it to be performed first, so the
-    use of parentheses can result in different calculation results.
-*/

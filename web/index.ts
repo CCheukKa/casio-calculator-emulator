@@ -20,7 +20,7 @@ const getEl = <T extends HTMLElement>(id: string): T => {
     return element as T;
 };
 
-for (const [key, value] of Object.entries(Token)) {
+for (const [_key, value] of Object.entries(Token)) {
     if (typeof value !== "string") { continue; }
     const token = value as Token;
 
