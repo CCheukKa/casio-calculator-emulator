@@ -5,7 +5,8 @@ import { Token } from "@lib/tokens";
 import { State, VM } from "@lib/vm";
 import { CalculatorMode } from "@lib/modes";
 import { expectThrowsValue } from "@test/test";
-import { D } from "@lib/operations";
+import { D, PI } from "@lib/operations";
+import Decimal from "decimal.js";
 
 const runProgram = (calculatorMode: CalculatorMode, program: Token[]) => {
     const vm = new VM(new State({ calculatorMode }));
@@ -94,7 +95,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_0,
             Token.EXECUTION_DELIMITER,
         ]);
-        expect(vm.state.answer).toBeCloseTo(Math.sin(Math.PI / 180 * (45 * 45 + Math.cos(Math.PI / 180 * 30))), 14);
+        expect(vm.state.answer).toEqualDecimal(Decimal.sin(PI.div(180).mul(Decimal.cos(PI.mul(30 / 180)).add(45 * 45))));
         expect(vm.state.shouldDisplay).toBe(false);
     });
 
@@ -411,7 +412,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.PI,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBeCloseTo(2 * Math.PI, 15);
+        expect(vm.state.answer).toEqualDecimal(2 * PI);
     });
 
     test("implicit multiplication with parenthetical function", () => {
@@ -424,7 +425,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.RIGHT_PARENTHESIS,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBeCloseTo(1, 15);
+        expect(vm.state.answer).toEqualDecimal(1);
     });
 
     test("improper implicit multiplication with variable throws syntax error", () => {
@@ -494,7 +495,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.PI,
             Token.DISPLAY,
         ]);
-        expect(vmb.state.answer).toBeCloseTo(10 * Math.cos(Math.PI / 180 * 30) * 45 * Math.sin(Math.PI / 180 * 30) * Math.PI * Math.PI, 12);
+        expect(vmb.state.answer).toEqualDecimal(10 * Math.cos(PI / 180 * 30) * 45 * Math.sin(PI / 180 * 30) * PI * PI);
     });
 
     test("improper chaining of implicit multiplication throws syntax error", () => {
@@ -707,15 +708,19 @@ describe("VM parsing and execution edge cases", () => {
     });
 
     test("division by zero stays finite or infinite but does not syntax-fail", () => {
-        const vm = runProgram(CalculatorMode.COMPUTATION, [
-            Token.NUMBER_1,
-            Token.DIVIDE,
-            Token.NUMBER_0,
-            Token.DISPLAY,
-        ]);
-        expect(Number.isNaN(vm.state.answer)).toBe(false);
+        expectThrowsValue(
+            () => runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_1,
+                Token.DIVIDE,
+                Token.NUMBER_0,
+                Token.DISPLAY,
+            ]),
+            Error.MATH_ERROR
+        );
     });
+});
 
+describe("Complex mode operations", () => {
     test("complex polar to rectangular conversion with proceeding tokens throws syntax error", () => {
         expectThrowsValue(
             () => runProgram(CalculatorMode.COMPLEX_NUMBER, [
@@ -736,7 +741,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.POLAR_COMPLEX,
             Token.EXECUTION_DELIMITER,
         ]);
-        expect(vm.state.answer).toBeCloseTo(2, 15);
+        expect(vm.state.answer).toEqualDecimal(2);
     });
 
     test("complex polar to rectangular conversion with proceeding DISPLAY does not throw syntax error", () => {
@@ -745,7 +750,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.POLAR_COMPLEX,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBeCloseTo(2, 15);
+        expect(vm.state.answer).toEqualDecimal(2);
         expect(vm.state.shouldDisplay).toBe(true);
     });
 
@@ -755,6 +760,53 @@ describe("VM parsing and execution edge cases", () => {
             Token.PLUS,
             Token.NUMBER_2,
             Token.POLAR_COMPLEX,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(3);
+    });
+
+    test("complex rectangular to polar conversion with proceeding tokens throws syntax error", () => {
+        expectThrowsValue(
+            () => runProgram(CalculatorMode.COMPLEX_NUMBER, [
+                Token.NUMBER_2,
+                Token.PLUS,
+                Token.IMAGINARY_UNIT,
+                Token.RECTANGULAR_COMPLEX,
+                Token.PLUS,
+                Token.NUMBER_3,
+            ]),
+            Error.SYNTAX_ERROR,
+        );
+    });
+
+    test("complex rectangular to polar conversion with proceeding EXECUTION_DELIMITER does not throw syntax error", () => {
+        const vm = runProgram(CalculatorMode.COMPLEX_NUMBER, [
+            Token.NUMBER_2,
+            Token.PLUS,
+            Token.IMAGINARY_UNIT,
+            Token.RECTANGULAR_COMPLEX,
+            Token.EXECUTION_DELIMITER,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(2);
+    });
+
+    test("complex rectangular to polar conversion with proceeding DISPLAY does not throw syntax error", () => {
+        const vm = runProgram(CalculatorMode.COMPLEX_NUMBER, [
+            Token.NUMBER_2,
+            Token.PLUS,
+            Token.IMAGINARY_UNIT,
+            Token.RECTANGULAR_COMPLEX,
+            Token.DISPLAY,
+        ]);
+        expect(vm.state.answer).toEqualDecimal(2);
+        expect(vm.state.shouldDisplay).toBe(true);
+    });
+
+    test("complex rectangular to polar conversion", () => {
+        const vm = runProgram(CalculatorMode.COMPLEX_NUMBER, [
+            Token.NUMBER_1,
+            Token.PLUS,
+            Token.NUMBER_2,
+            Token.RECTANGULAR_COMPLEX,
         ]);
         expect(vm.state.answer).toEqualDecimal(3);
     });
