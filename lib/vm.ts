@@ -233,7 +233,11 @@ export class VM {
         let left = this.parsePrefix();
 
         while (true) {
-            while (!this.isAtEnd() && this.isPostfixOperator(this.peekToken())) {
+            while (!this.isAtEnd()) {
+                const nextPostfix = this.peekToken();
+                const postfixPrecedence = this.getPostfixPrecedence(nextPostfix);
+                if (postfixPrecedence === undefined || postfixPrecedence < minPrecedence) { break; }
+
                 const operation = this.consumeToken()!;
                 if ((operation === Token.POLAR_COMPLEX || operation === Token.RECTANGULAR_COMPLEX) && !this.isAtEnd()) {
                     throw Error.SYNTAX_ERROR;
@@ -251,6 +255,9 @@ export class VM {
             this.consumeToken();
             const nextMinPrecedence = rightAssociative ? precedence : precedence + 1;
             const right = this.parseExpression(nextMinPrecedence);
+            if ((token === Token.POWER || token === Token.X_ROOT) && this.peekToken() === Token.RIGHT_PARENTHESIS) {
+                this.consumeToken();
+            }
             left = { kind: "binary", operation: token, left, right };
         }
 
@@ -263,7 +270,16 @@ export class VM {
 
         if (token === Token.MINUS || token === Token.NEGATIVE) {
             this.consumeToken();
-            return { kind: "unary", operation: Token.NEGATIVE, operand: this.parseExpression(9) };
+            const operand = this.parseExpression(9);
+            if (operand.kind === "binary" && (operand.operation === Token.POWER || operand.operation === Token.X_ROOT)) {
+                throw Error.SYNTAX_ERROR;
+            }
+            return { kind: "unary", operation: Token.NEGATIVE, operand };
+        }
+
+        if (this.isBasePrefixToken(token)) {
+            this.consumeToken();
+            return { kind: "literal", value: this.parseBasePrefixedLiteral(token) };
         }
 
         if (token === Token.RANDOM) {
@@ -386,7 +402,11 @@ export class VM {
                 }
                 throw Error.MATH_ERROR;
             case Token.CONJUGATE: return operand;
-            case Token.NOT: return D(operand.isZero() ? 1 : 0);
+            case Token.NOT:
+                if (this.state.calculatorMode === CalculatorMode.BASE) {
+                    return D((~this.toBitwiseOperand(operand)).toString());
+                }
+                return D(operand.isZero() ? 1 : 0);
             case Token.X_ESTIMATED_VALUE:
                 return this.estimateX(operand, 1);
             case Token.X1_ESTIMATED_VALUE:
@@ -421,10 +441,26 @@ export class VM {
             case Token.LESS_THAN: return D(left.lt(right) ? 1 : 0);
             case Token.GREATER_THAN_OR_EQUAL: return D(left.gte(right) ? 1 : 0);
             case Token.LESS_THAN_OR_EQUAL: return D(left.lte(right) ? 1 : 0);
-            case Token.AND: return D(!left.isZero() && !right.isZero() ? 1 : 0);
-            case Token.OR: return D(!left.isZero() || !right.isZero() ? 1 : 0);
-            case Token.XOR: return D((!left.isZero()) !== (!right.isZero()) ? 1 : 0);
-            case Token.XNOR: return D((!left.isZero()) === (!right.isZero()) ? 1 : 0);
+            case Token.AND:
+                if (this.state.calculatorMode === CalculatorMode.BASE) {
+                    return D((this.toBitwiseOperand(left) & this.toBitwiseOperand(right)).toString());
+                }
+                return D(!left.isZero() && !right.isZero() ? 1 : 0);
+            case Token.OR:
+                if (this.state.calculatorMode === CalculatorMode.BASE) {
+                    return D((this.toBitwiseOperand(left) | this.toBitwiseOperand(right)).toString());
+                }
+                return D(!left.isZero() || !right.isZero() ? 1 : 0);
+            case Token.XOR:
+                if (this.state.calculatorMode === CalculatorMode.BASE) {
+                    return D((this.toBitwiseOperand(left) ^ this.toBitwiseOperand(right)).toString());
+                }
+                return D((!left.isZero()) !== (!right.isZero()) ? 1 : 0);
+            case Token.XNOR:
+                if (this.state.calculatorMode === CalculatorMode.BASE) {
+                    return D((~(this.toBitwiseOperand(left) ^ this.toBitwiseOperand(right))).toString());
+                }
+                return D((!left.isZero()) === (!right.isZero()) ? 1 : 0);
             default:
                 throw Error.EMULATOR_ERROR;
         }
@@ -604,8 +640,6 @@ export class VM {
             case Token.POLAR_COMPLEX:
             case Token.RECTANGULAR:
             case Token.RECTANGULAR_COMPLEX:
-            case Token.PERMUTATION:
-            case Token.COMBINATION:
             case Token.ABSOLUTE_VALUE:
             case Token.ARGUMENT:
             case Token.CONJUGATE:
@@ -623,6 +657,7 @@ export class VM {
     }
 
     private isParentheticalFunctionToken(token: Token): boolean {
+        if (token === Token.NOT || token === Token.NEGATE) { return true; }
         const symbol = TokenSymbol[token];
         return typeof symbol === "string" && symbol.endsWith("(");
     }
@@ -634,6 +669,10 @@ export class VM {
             case Token.CUBE:
             case Token.INVERSE:
             case Token.PERCENT:
+            case Token.X_ESTIMATED_VALUE:
+            case Token.X1_ESTIMATED_VALUE:
+            case Token.X2_ESTIMATED_VALUE:
+            case Token.Y_ESTIMATED_VALUE:
             case Token.POLAR_COMPLEX:
             case Token.RECTANGULAR_COMPLEX:
                 return true;
@@ -695,6 +734,60 @@ export class VM {
         }
     }
 
+    private isBasePrefixToken(token: Token): boolean {
+        return token === Token.DECIMAL_NUMBER
+            || token === Token.HEXADECIMAL_NUMBER
+            || token === Token.BINARY_NUMBER
+            || token === Token.OCTAL_NUMBER;
+    }
+
+    private parseBasePrefixedLiteral(prefix: Token): Decimal {
+        const base = prefix === Token.DECIMAL_NUMBER ? 10
+            : prefix === Token.HEXADECIMAL_NUMBER ? 16
+                : prefix === Token.BINARY_NUMBER ? 2
+                    : 8;
+
+        const digits: string[] = [];
+        while (!this.isAtEnd()) {
+            const token = this.peekToken();
+            if (token === undefined) { break; }
+            const digit = this.tokenToBaseDigit(token, base);
+            if (digit === undefined) { break; }
+            this.consumeToken();
+            digits.push(digit);
+        }
+
+        if (digits.length === 0) { throw Error.SYNTAX_ERROR; }
+        return D(parseInt(digits.join(""), base));
+    }
+
+    private tokenToBaseDigit(token: Token, base: number): string | undefined {
+        if (this.isDigitToken(token)) {
+            const digit = this.tokenToNumberComponent(token);
+            if (Number(digit) < base) { return digit; }
+            return undefined;
+        }
+
+        if (base === 16) {
+            switch (token) {
+                case Token.HEXADECIMAL_A: return "A";
+                case Token.HEXADECIMAL_B: return "B";
+                case Token.HEXADECIMAL_C: return "C";
+                case Token.HEXADECIMAL_D: return "D";
+                case Token.HEXADECIMAL_E: return "E";
+                case Token.HEXADECIMAL_F: return "F";
+                default: return undefined;
+            }
+        }
+
+        return undefined;
+    }
+
+    private toBitwiseOperand(value: Decimal): bigint {
+        if (!value.isInteger()) { throw Error.MATH_ERROR; }
+        return BigInt(value.toFixed(0));
+    }
+
     private isConstantToken(token: Token): boolean {
         switch (token) {
             case Token.PI:
@@ -752,7 +845,8 @@ export class VM {
     }
 
     private estimateY(x: Decimal): Decimal {
-        const { a, b, c, regressionMode } = this.state;
+        const { a, b, c } = this.getRegressionCoefficients();
+        const { regressionMode } = this.state;
         switch (regressionMode) {
             case RegressionMode.LINEAR:
                 return a.plus(b.times(x));
@@ -777,7 +871,8 @@ export class VM {
     }
 
     private estimateX(y: Decimal, rootIndex: 1 | 2): Decimal {
-        const { a, b, c, regressionMode } = this.state;
+        const { a, b, c } = this.getRegressionCoefficients();
+        const { regressionMode } = this.state;
         switch (regressionMode) {
             case RegressionMode.LINEAR:
                 if (b.isZero()) { throw Error.MATH_ERROR; }
@@ -807,15 +902,82 @@ export class VM {
                 const sqrtDiscriminant = CommonOperators.sqrt(discriminant);
                 const denominator = D(2).times(A);
                 if (rootIndex === 1) {
-                    return B.negated().minus(sqrtDiscriminant).div(denominator);
+                    return B.negated().plus(sqrtDiscriminant).div(denominator);
                 }
-                return B.negated().plus(sqrtDiscriminant).div(denominator);
+                return B.negated().minus(sqrtDiscriminant).div(denominator);
             }
             case RegressionMode.AB_EXPONENTIAL:
                 if (a.isZero() || b.lte(0) || b.eq(1)) { throw Error.MATH_ERROR; }
                 return CommonOperators.ln(y.div(a)).div(CommonOperators.ln(b));
             default:
                 throw Error.EMULATOR_ERROR;
+        }
+    }
+
+    private getRegressionCoefficients(): { a: Decimal; b: Decimal; c: Decimal } {
+        const { a, b, c, regressionMode, xData, yData } = this.state;
+
+        if (xData.length === 0 || yData.length === 0 || xData.length !== yData.length) {
+            return { a, b, c };
+        }
+
+        if (regressionMode === RegressionMode.LINEAR && xData.length >= 2) {
+            const n = D(xData.length);
+            const sumX = xData.reduce((acc, v) => acc.plus(v), D(0));
+            const sumY = yData.reduce((acc, v) => acc.plus(v), D(0));
+            const sumXY = xData.reduce((acc, x, i) => acc.plus(x.times(yData[i]!)), D(0));
+            const sumX2 = xData.reduce((acc, x) => acc.plus(x.times(x)), D(0));
+            const denom = n.times(sumX2).minus(sumX.times(sumX));
+            if (denom.isZero()) { return { a, b, c }; }
+            const bCoeff = n.times(sumXY).minus(sumX.times(sumY)).div(denom);
+            const aCoeff = sumY.minus(bCoeff.times(sumX)).div(n);
+            return { a: aCoeff, b: bCoeff, c: D(0) };
+        }
+
+        if (regressionMode === RegressionMode.QUADRATIC && xData.length >= 3) {
+            const x1 = xData[0]!; const y1 = yData[0]!;
+            const x2 = xData[1]!; const y2 = yData[1]!;
+            const x3 = xData[2]!; const y3 = yData[2]!;
+
+            const det = x1.pow(2).times(x2.minus(x3))
+                .plus(x2.pow(2).times(x3.minus(x1)))
+                .plus(x3.pow(2).times(x1.minus(x2)));
+            if (det.isZero()) { return { a, b, c }; }
+
+            const cCoeff = y1.times(x2.minus(x3))
+                .plus(y2.times(x3.minus(x1)))
+                .plus(y3.times(x1.minus(x2)))
+                .div(det);
+
+            const bCoeff = y1.times(x3.pow(2).minus(x2.pow(2)))
+                .plus(y2.times(x1.pow(2).minus(x3.pow(2))))
+                .plus(y3.times(x2.pow(2).minus(x1.pow(2))))
+                .div(det);
+
+            const aCoeff = y1.minus(bCoeff.times(x1)).minus(cCoeff.times(x1.pow(2)));
+            return { a: aCoeff, b: bCoeff, c: cCoeff };
+        }
+
+        return { a, b, c };
+    }
+
+    private getPostfixPrecedence(token: Token | undefined): number | undefined {
+        switch (token) {
+            case Token.FACTORIAL:
+            case Token.SQUARE:
+            case Token.CUBE:
+            case Token.INVERSE:
+            case Token.PERCENT:
+            case Token.POLAR_COMPLEX:
+            case Token.RECTANGULAR_COMPLEX:
+                return 11;
+            case Token.X_ESTIMATED_VALUE:
+            case Token.X1_ESTIMATED_VALUE:
+            case Token.X2_ESTIMATED_VALUE:
+            case Token.Y_ESTIMATED_VALUE:
+                return 8;
+            default:
+                return undefined;
         }
     }
 
