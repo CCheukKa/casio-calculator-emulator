@@ -2,7 +2,7 @@
     "name": "casio-emulator",
     "module": "index.ts",
     "scripts": {
-        "build": "rm -rf ./dist && bun build ./web/index.html --outdir ./dist --target browser --chunk-naming=[name].[ext] --asset-naming=[name].[ext] --sourcemap=linked --minify"
+        "build": "rm -rf ./build && bun build ./web/index.html --outdir ./build --target browser --chunk-naming=[name].[ext] --asset-naming=[name].[ext] --sourcemap=linked --minify"
     },
     "devDependencies": {
         "@types/bun": "^1.3.13"
