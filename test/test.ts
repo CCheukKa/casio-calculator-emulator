@@ -1,9 +1,7 @@
 import Decimal from "decimal.js";
 import { expect } from "bun:test";
-import { C, type Complex } from "@lib/operations";
+import { C, TARGET_PRECISION, type Complex } from "@lib/operations";
 import type { Error } from "@lib/errors";
-
-export const TARGET_PRECISION = 15;
 
 export function formatComplex(c: Complex) {
     const re = c.re.toPrecision(TARGET_PRECISION);

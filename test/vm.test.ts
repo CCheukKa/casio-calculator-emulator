@@ -5,6 +5,7 @@ import { Token } from "@lib/tokens";
 import { State, VM } from "@lib/vm";
 import { CalculatorMode } from "@lib/modes";
 import { expectThrowsValue } from "@test/test";
+import { D } from "@lib/operations";
 
 const runProgram = (calculatorMode: CalculatorMode, program: Token[]) => {
     const vm = new VM(new State({ calculatorMode }));
@@ -15,7 +16,7 @@ const runProgram = (calculatorMode: CalculatorMode, program: Token[]) => {
 describe("VM parsing and execution edge cases", () => {
     test("empty program does not throw", () => {
         const vm = runProgram(CalculatorMode.COMPUTATION, []);
-        expect(vm.state.answer).toBe(0);
+        expect(vm.state.answer).toEqualDecimal(0);
         expect(vm.state.shouldDisplay).toBe(false);
     });
 
@@ -40,7 +41,7 @@ describe("VM parsing and execution edge cases", () => {
 
     test("EOF acts like display for shouldDisplay", () => {
         const vm = runProgram(CalculatorMode.COMPUTATION, [Token.NUMBER_2, Token.PLUS, Token.NUMBER_3]);
-        expect(vm.state.answer).toBe(5);
+        expect(vm.state.answer).toEqualDecimal(5);
         expect(vm.state.shouldDisplay).toBe(true);
     });
 
@@ -51,7 +52,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_3,
             Token.EXECUTION_DELIMITER,
         ]);
-        expect(vm.state.answer).toBe(5);
+        expect(vm.state.answer).toEqualDecimal(5);
         expect(vm.state.shouldDisplay).toBe(false);
     });
 
@@ -62,7 +63,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_3,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(5);
+        expect(vm.state.answer).toEqualDecimal(5);
         expect(vm.state.shouldDisplay).toBe(true);
     });
 
@@ -77,7 +78,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_4,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(20);
+        expect(vm.state.answer).toEqualDecimal(20);
         expect(vm.state.shouldDisplay).toBe(true);
     });
 
@@ -113,7 +114,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.DISPLAY,
         ]);
 
-        expect(vmA.state.answer).toBe(vmB.state.answer);
+        expect(vmA.state.answer).toEqualDecimal(vmB.state.answer);
     });
 
     test("unbalanced plain parenthesis is auto-closed at end of instruction", () => {
@@ -126,7 +127,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_3,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(7);
+        expect(vm.state.answer).toEqualDecimal(7);
         expect(vm.state.shouldDisplay).toBe(true);
     });
 
@@ -139,7 +140,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_3,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(7);
+        expect(vm.state.answer).toEqualDecimal(7);
     });
 
     test("parentheses override precedence", () => {
@@ -153,7 +154,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_3,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(9);
+        expect(vm.state.answer).toEqualDecimal(9);
     });
 
     test("division is left-associative", () => {
@@ -165,7 +166,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(1);
+        expect(vm.state.answer).toEqualDecimal(1);
     });
 
     test("minus acts as unary operator when preceding a number", () => {
@@ -176,7 +177,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_4,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(-12);
+        expect(vm.state.answer).toEqualDecimal(-12);
     });
 
     test("postfix priority above unary minus", () => {
@@ -186,7 +187,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.SQUARE,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(-4);
+        expect(vm.state.answer).toEqualDecimal(-4);
     });
 
     test("unary minus gives same answer as negative token", () => {
@@ -200,7 +201,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.DISPLAY,
         ]);
-        expect(vmUnary.state.answer).toBe(vmNegative.state.answer);
+        expect(vmUnary.state.answer).toEqualDecimal(vmNegative.state.answer);
     });
 
     test("power token without required parenthetical close throws syntax error", () => {
@@ -223,7 +224,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_5,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(1.25);
+        expect(vm.state.answer).toEqualDecimal(1.25);
     });
 
     test("decimal point without following number is allowed", () => {
@@ -232,7 +233,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.DECIMAL_POINT,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(1);
+        expect(vm.state.answer).toEqualDecimal(1);
     });
 
     test("scientific notation parsing", () => {
@@ -242,7 +243,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(100);
+        expect(vm.state.answer).toEqualDecimal(100);
     });
 
     test("scientific notation with hanging decimal point in base is accepted", () => {
@@ -252,7 +253,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.SCIENTIFIC_EXPONENTIATION,
             Token.NUMBER_2,
         ]);
-        expect(vm.state.answer).toBe(100);
+        expect(vm.state.answer).toEqualDecimal(100);
     });
 
     test("scientific notation with signed exponent is accepted", () => {
@@ -264,7 +265,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.DISPLAY,
         ]);
-        expect(vmPos.state.answer).toBe(-100);
+        expect(vmPos.state.answer).toEqualDecimal(-100);
 
         const vmNeg = runProgram(CalculatorMode.COMPUTATION, [
             Token.MINUS,
@@ -274,7 +275,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.DISPLAY,
         ]);
-        expect(vmNeg.state.answer).toBe(-0.01);
+        expect(vmNeg.state.answer).toEqualDecimal(-0.01);
     });
 
     test("scientific notation without base number is accepted and treated as 1", () => {
@@ -283,7 +284,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(100);
+        expect(vm.state.answer).toEqualDecimal(100);
     });
 
     test("scientific notation does not allow decimal point in exponent", () => {
@@ -379,14 +380,14 @@ describe("VM parsing and execution edge cases", () => {
 
     test("explicit multiplication with variable", () => {
         const vm = new VM();
-        vm.state.a = 4;
+        vm.state.a = D(4);
         vm.execute([
             Token.NUMBER_2,
             Token.MULTIPLY,
             Token.VARIABLE_A,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(8);
+        expect(vm.state.answer).toEqualDecimal(8);
     });
 
     test("explicit multiplication with answer", () => {
@@ -400,7 +401,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.ANSWER,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(18);
+        expect(vm.state.answer).toEqualDecimal(18);
     });
 
     test("explicit multiplication with constant", () => {
@@ -471,8 +472,8 @@ describe("VM parsing and execution edge cases", () => {
 
     test("explicit multiplication chain across answer/functions/variables/constants works", () => {
         const vmb = new VM();
-        vmb.state.a = 45;
-        vmb.state.answer = 10;
+        vmb.state.a = D(45);
+        vmb.state.answer = D(10);
         vmb.execute([
             Token.ANSWER,
             Token.MULTIPLY,
@@ -521,7 +522,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.RIGHT_PARENTHESIS,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(3);
+        expect(vm.state.answer).toEqualDecimal(3);
     });
 
     test("comma outside function context throws syntax error", () => {
@@ -542,7 +543,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.DISPLAY,
         ]);
-        expect(vmRel.state.answer).toBe(1);
+        expect(vmRel.state.answer).toEqualDecimal(1);
 
         const vmAnd = runProgram(CalculatorMode.COMPUTATION, [
             Token.NUMBER_1,
@@ -550,7 +551,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_0,
             Token.DISPLAY,
         ]);
-        expect(vmAnd.state.answer).toBe(0);
+        expect(vmAnd.state.answer).toEqualDecimal(0);
     });
 
     test("math domain errors surface from operations", () => {
@@ -579,7 +580,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.DISPLAY,
         ]);
 
-        expect(vm.state.answer).toBe(12);
+        expect(vm.state.answer).toEqualDecimal(12);
         expect(vm.state.shouldDisplay).toBe(true);
     });
 
@@ -596,7 +597,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.ANSWER,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(5 * 6 * 6);
+        expect(vm.state.answer).toEqualDecimal(5 * 6 * 6);
         expect(vm.state.shouldDisplay).toBe(true);
     });
 
@@ -607,7 +608,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.RIGHT_PARENTHESIS,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(3);
+        expect(vm.state.answer).toEqualDecimal(3);
     });
 
     test("sqrt of negative throws MathError", () => {
@@ -631,7 +632,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.RIGHT_PARENTHESIS,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(2);
+        expect(vm.state.answer).toEqualDecimal(2);
     });
 
     test("logarithm call with unsupported arity throws EMULATOR_ERROR", () => {
@@ -655,7 +656,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.FACTORIAL,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(120);
+        expect(vm.state.answer).toEqualDecimal(120);
     });
 
     test("factorial throws MathError for non-integer", () => {
@@ -681,7 +682,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_3,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(7);
+        expect(vm.state.answer).toEqualDecimal(7);
     });
 
     test("parser rejects malformed token sequence", () => {
@@ -701,7 +702,7 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.DISPLAY,
         ]);
-        expect(vm.state.answer).toBe(4);
+        expect(vm.state.answer).toEqualDecimal(4);
         expect(vm.state.shouldDisplay).toBe(true);
     });
 
@@ -755,6 +756,6 @@ describe("VM parsing and execution edge cases", () => {
             Token.NUMBER_2,
             Token.POLAR_COMPLEX,
         ]);
-        expect(vm.state.answer).toBe(3);
+        expect(vm.state.answer).toEqualDecimal(3);
     });
 });

@@ -2,8 +2,11 @@ import { Error } from "@lib/errors";
 import { AngleMode, NumberDisplayMode, RegressionMode } from "@lib/modes";
 import Decimal from "decimal.js";
 
+export const TARGET_PRECISION = 15;
+const INTERNAL_PRECISION = TARGET_PRECISION + 5;
+
 Decimal.set({
-    precision: 20,
+    precision: INTERNAL_PRECISION,
     rounding: Decimal.ROUND_HALF_UP,
 });
 
