@@ -7,6 +7,7 @@ import { CalculatorMode, RegressionMode } from "@lib/modes";
 import { expectThrowsValue } from "@test/test";
 import { D, PI } from "@lib/operations";
 import Decimal from "decimal.js";
+import { CONSTANTS } from "@lib/constants";
 
 const runProgram = (calculatorMode: CalculatorMode, program: Token[]) => {
     const vm = new VM(new State({ calculatorMode }));
@@ -496,6 +497,175 @@ describe("VM core parser and execution coverage", () => {
             ]),
             Error.SYNTAX_ERROR
         );
+    });
+
+    describe("implicit multiplication precedence and behavior", () => {
+        test("implicit multiplication with variable before division", () => {
+            const vm = new VM();
+            vm.state.a = D(2);
+            vm.execute([
+                Token.NUMBER_1,
+                Token.NUMBER_2,
+                Token.DIVIDE,
+                Token.NUMBER_2,
+                Token.VARIABLE_A,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(3);
+        });
+
+        test("implicit multiplication with pi before division", () => {
+            const vm = runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_2,
+                Token.NUMBER_0,
+                Token.DIVIDE,
+                Token.NUMBER_4,
+                Token.PI,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(D(20).div(D(4).times(PI)));
+        });
+
+        test("implicit multiplication with pi before addition", () => {
+            const vm = runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_5,
+                Token.PLUS,
+                Token.NUMBER_2,
+                Token.PI,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(D(5).plus(D(2).times(PI)));
+        });
+
+        test("implicit multiplication with pi before subtraction", () => {
+            const vm = runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_1,
+                Token.NUMBER_0,
+                Token.MINUS,
+                Token.NUMBER_3,
+                Token.PI,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(D(10).minus(D(3).times(PI)));
+        });
+
+        test("implicit multiplication with variable before multiplication", () => {
+            const vm = new VM();
+            vm.state.a = D(4);
+            vm.execute([
+                Token.NUMBER_5,
+                Token.MULTIPLY,
+                Token.NUMBER_3,
+                Token.VARIABLE_A,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(60);
+        });
+
+        test("implicit multiplication with square root function", () => {
+            const vm = runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_2,
+                Token.SQUARE_ROOT,
+                Token.NUMBER_9,
+                Token.RIGHT_PARENTHESIS,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(6);
+        });
+
+        test("implicit multiplication with parenthetical function before addition", () => {
+            const vm = runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_3,
+                Token.PLUS,
+                Token.NUMBER_2,
+                Token.SINE,
+                Token.NUMBER_3,
+                Token.NUMBER_0,
+                Token.RIGHT_PARENTHESIS,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(4);
+        });
+
+        test("implicit multiplication with parenthetical function before division", () => {
+            const vm = runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_1,
+                Token.NUMBER_0,
+                Token.DIVIDE,
+                Token.NUMBER_2,
+                Token.SQUARE_ROOT,
+                Token.NUMBER_4,
+                Token.RIGHT_PARENTHESIS,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(2.5);
+        });
+
+        test("chain of implicit multiplications with numbers and variables", () => {
+            const vm = new VM();
+            vm.state.a = D(3);
+            vm.execute([
+                Token.NUMBER_2,
+                Token.PLUS,
+                Token.NUMBER_4,
+                Token.VARIABLE_A,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(14);
+        });
+
+        test("implicit multiplication with answer variable", () => {
+            const vm = runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_5,
+                Token.EXECUTION_DELIMITER,
+                Token.NUMBER_3,
+                Token.ANSWER,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(15);
+        });
+
+        test("implicit multiplication with answer before operator", () => {
+            const vm = runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_4,
+                Token.EXECUTION_DELIMITER,
+                Token.NUMBER_2,
+                Token.PLUS,
+                Token.NUMBER_3,
+                Token.ANSWER,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(14);
+        });
+
+        test("implicit multiplication with constants", () => {
+            const vm = runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_2,
+                Token.DIVIDE,
+                Token.NUMBER_5,
+                Token.PLANCK_CONSTANT,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(D(2).div(D(5).times(CONSTANTS.PLANCK_CONSTANT!)));
+        });
+
+        test("implicit multiplication preserves correct precedence with explicit operators", () => {
+            const vm = new VM();
+            vm.state.a = D(2);
+            vm.state.b = D(3);
+            vm.execute([
+                Token.NUMBER_1,
+                Token.PLUS,
+                Token.NUMBER_2,
+                Token.VARIABLE_A,
+                Token.DIVIDE,
+                Token.VARIABLE_B,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(1 + 2 * 2 / 3);
+        });
+
+        test("implicit multiplication with nested function", () => {
+            const vm = runProgram(CalculatorMode.COMPUTATION, [
+                Token.NUMBER_6,
+                Token.DIVIDE,
+                Token.NUMBER_2,
+                Token.SINE,
+                Token.SINE,
+                Token.NUMBER_3,
+                Token.NUMBER_0,
+                Token.RIGHT_PARENTHESIS,
+                Token.RIGHT_PARENTHESIS,
+            ]);
+            expect(vm.state.answer).toEqualDecimal(D(6).div(D(2).times(Decimal.sin(PI.div(180).times((Decimal.sin(PI.div(180).times(30))))))));
+        });
     });
 
     test("two-arg parenthetical call via comma parses", () => {

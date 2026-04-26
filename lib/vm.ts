@@ -250,10 +250,12 @@ export class VM {
             const binaryOperator = this.getBinaryOperator(nextToken, left);
             if (binaryOperator === undefined) { break; }
 
-            const { token, precedence, rightAssociative } = binaryOperator;
+            const { token, precedence, rightAssociative, implicit } = binaryOperator;
             if (precedence < minPrecedence) { break; }
 
-            this.consumeToken();
+            if (!implicit) {
+                this.consumeToken();
+            }
             const nextMinPrecedence = rightAssociative ? precedence : precedence + 1;
             const right = this.parseExpression(nextMinPrecedence);
             if ((token === Token.POWER || token === Token.X_ROOT) && this.peekToken() === Token.RIGHT_PARENTHESIS) {
@@ -552,42 +554,43 @@ export class VM {
         }
     }
 
-    private getBinaryOperator(token: Token | undefined, left: BoundInstruction): { token: Token; precedence: number; rightAssociative: boolean } | undefined {
+    private getBinaryOperator(token: Token | undefined, left: BoundInstruction): { token: Token; precedence: number; rightAssociative: boolean; implicit: boolean } | undefined {
         if (token === undefined) { return undefined; }
 
         if (this.isImplicitMultiplicationToken(token, left)) {
-            return { token: Token.MULTIPLY, precedence: 7, rightAssociative: false };
+            // Omitted multiplication (e.g. 12 ÷ 2A) binds tighter than divide.
+            return { token: Token.MULTIPLY, precedence: 8, rightAssociative: false, implicit: true };
         }
 
         switch (token) {
             case Token.POWER:
             case Token.X_ROOT:
-                return { token, precedence: 10, rightAssociative: true };
+                return { token, precedence: 10, rightAssociative: true, implicit: false };
             case Token.FRACTION:
-                return { token, precedence: 9, rightAssociative: false };
+                return { token, precedence: 9, rightAssociative: false, implicit: false };
             case Token.PERMUTATION:
             case Token.COMBINATION:
             case Token.ANGLE:
-                return { token, precedence: 8, rightAssociative: false };
+                return { token, precedence: 8, rightAssociative: false, implicit: false };
             case Token.MULTIPLY:
             case Token.DIVIDE:
-                return { token, precedence: 7, rightAssociative: false };
+                return { token, precedence: 7, rightAssociative: false, implicit: false };
             case Token.PLUS:
             case Token.MINUS:
-                return { token, precedence: 6, rightAssociative: false };
+                return { token, precedence: 6, rightAssociative: false, implicit: false };
             case Token.EQUAL:
             case Token.NOT_EQUAL:
             case Token.GREATER_THAN:
             case Token.LESS_THAN:
             case Token.GREATER_THAN_OR_EQUAL:
             case Token.LESS_THAN_OR_EQUAL:
-                return { token, precedence: 5, rightAssociative: false };
+                return { token, precedence: 5, rightAssociative: false, implicit: false };
             case Token.AND:
-                return { token, precedence: 4, rightAssociative: false };
+                return { token, precedence: 4, rightAssociative: false, implicit: false };
             case Token.OR:
             case Token.XOR:
             case Token.XNOR:
-                return { token, precedence: 3, rightAssociative: false };
+                return { token, precedence: 3, rightAssociative: false, implicit: false };
             default:
                 return undefined;
         }
@@ -596,7 +599,12 @@ export class VM {
     private isImplicitMultiplicationToken(token: Token, left: BoundInstruction): boolean {
         if (token === Token.SCIENTIFIC_EXPONENTIATION) { return false; }
         if (!this.isPrimaryStartToken(token)) { return false; }
-        return left.kind === "literal" || left.kind === "variable" || left.kind === "unary" || left.kind === "call";
+        if (left.kind !== "literal") { return false; }
+
+        const previousToken = this.parseState?.tokens[this.parseState.index - 1];
+        if (previousToken === undefined) { return false; }
+        // Keep legacy behavior: implicit multiplication is only valid after numeric literals.
+        return this.isNumberComponentToken(previousToken);
     }
 
     private isPrimaryStartToken(token: Token): boolean {

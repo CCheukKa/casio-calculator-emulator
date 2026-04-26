@@ -1,3 +1,6 @@
+# Casio fx-50FH II Specifications
+Manual seems to be unavailable, so specifications are based on the fx-50F PLUS and fx-3650P II manuals.  
+
 ## Mode 3: Base-N Calculations
 In Base-N mode, you can perform calculations in binary, octal, decimal, or hexadecimal.  
 - Inputting a digit outside the current number base causes an error. For example, if you input 2 in binary mode, you will get a Syntax ERROR.
@@ -80,3 +83,4 @@ or, xor, xnor
 ### Note
 - If a calculation contains a negative value, you may need to enclose the negative value in parentheses. If you want to square the value –2, for example, you need to input: (-2)².This is because x² is a function preceded by a value (Priority 2, above), whose priority is greater than the negative sign, which is a prefix symbol (Priority 4).  
 - Multiplication and division, and multiplication where the sign is omitted are the same priority (Priority 7), so these operations are performed from left to right when both types are mixed in the same calculation. Enclosing an operation in parentheses causes it to be performed first, so the use of parentheses can result in different calculation results.  
+- For implicit multiplication, an expression like 12 ÷ 2A is treated as 12 ÷ (2 × A).
